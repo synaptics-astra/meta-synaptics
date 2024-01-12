@@ -1,6 +1,7 @@
 DESCRIPTION = "VIDEOSDK"
 SECTION = "multimedia"
 LICENSE = "CLOSED"
+LICENSE_FLAGS = "Synaptics-EULA"
 
 DEPENDS = " \
     gstreamer1.0-meta-base \

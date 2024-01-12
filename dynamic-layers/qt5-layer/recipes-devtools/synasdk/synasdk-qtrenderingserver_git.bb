@@ -1,6 +1,7 @@
 SUMMARY = "QT renderingserver Recipe"
 SECTION = "multimedia"
 LICENSE = "CLOSED"
+LICENSE_FLAGS = "Synaptics-EULA"
 
 DEPENDS += "qtbase qtdeclarative qtmultimedia qtxmlpatterns libpng jpeg udev python3"
 RDEPENDS_${PN} += "qtdeclarative-qmlplugins qtgraphicaleffects-qmlplugins"

@@ -1,6 +1,7 @@
 DESCRIPTION = "Synaptics platform firmware images"
 SECTION = "devtools"
 LICENSE = "CLOSED"
+LICENSE_FLAGS = "Synaptics-EULA"
 
 PR = "r3"
 

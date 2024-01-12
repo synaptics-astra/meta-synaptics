@@ -1,6 +1,7 @@
 DESCRIPTION = "Synaptics platform signatures"
 SECTION = "devtools"
 LICENSE = "CLOSED"
+LICENSE_FLAGS = "Synaptics-EULA"
 
 PR = "r2"
 

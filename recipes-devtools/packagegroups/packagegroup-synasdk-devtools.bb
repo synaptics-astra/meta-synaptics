@@ -7,6 +7,7 @@
 SUMMARY = "Package Group for Synaptics specific development tools"
 
 LICENSE = "CLOSED"
+LICENSE_FLAGS = "Synaptics-EULA"
 
 inherit packagegroup
 

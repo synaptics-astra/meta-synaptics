@@ -1,6 +1,7 @@
 DESCRIPTION = "Synaptics Trusted Application"
 SECTION = "devtools"
 LICENSE = "CLOSED"
+LICENSE_FLAGS = "Synaptics-EULA"
 
 PR = "r2"
 

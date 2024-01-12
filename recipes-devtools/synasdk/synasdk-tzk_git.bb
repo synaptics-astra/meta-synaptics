@@ -1,6 +1,7 @@
 DESCRIPTION = "Synaptics Trusted Execution Environment EL1 image"
 SECTION = "devtools"
 LICENSE = "CLOSED"
+LICENSE_FLAGS = "Synaptics-EULA"
 PR = "r2"
 
 inherit nopackages deploy

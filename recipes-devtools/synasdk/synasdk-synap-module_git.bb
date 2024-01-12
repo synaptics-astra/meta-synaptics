@@ -2,6 +2,7 @@ SUMMARY = "SyNAP kernel module"
 DESCRIPTION = "${SUMMARY}"
 
 LICENSE = "CLOSED"
+LICENSE_FLAGS = "Synaptics-EULA"
 
 COMPATIBLE_MACHINE = "platypus|dolphin"
 

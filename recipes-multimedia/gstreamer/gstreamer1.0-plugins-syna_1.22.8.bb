@@ -2,6 +2,7 @@ SUMMARY = "GStreamer Syna Plugins"
 DESCRIPTION = "Synaptics Proprietary GStreamer Plugins"
 SECTION = "multimedia"
 LICENSE = "CLOSED"
+LICENSE_FLAGS = "Synaptics-EULA"
 
 require gstreamer1.0-plugins-common.inc
 

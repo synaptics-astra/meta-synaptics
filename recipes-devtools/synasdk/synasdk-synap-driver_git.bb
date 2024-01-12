@@ -1,6 +1,7 @@
 DESCRIPTION = "SyNAP NPU Driver user space tools"
 SECTION = "devtools"
 LICENSE = "CLOSED"
+LICENSE_FLAGS = "Synaptics-EULA"
 PR = "r2"
 
 SRC_URI = "${SYNA_SRC_SYNAP_DRIVER}"

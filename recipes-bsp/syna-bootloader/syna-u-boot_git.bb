@@ -1,5 +1,6 @@
 DESCRIPTION = "Bootloader for Synaptics platform."
 LICENSE = "CLOSED"
+LICENSE_FLAGS = "Synaptics-EULA"
 SECTION = "bootloaders"
 
 PR = "r3"

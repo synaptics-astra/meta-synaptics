@@ -100,18 +100,82 @@ if [ -z "$_BUILDDIR" ]; then
     fi
 fi
 
+_SYNA_EULA_STR="Synaptics-EULA"
+_SYNA_EULA_FILE="${PWD}/meta-synaptics/EULA.rst"
+_PROMPT_SYNA_EULA=1
+_SYNA_EULA_ACCEPTED=0
+
+# Allow the user to set this variable in the enviroment to skip the EULA prompt.
+# This is useful for automation.
+if [ "$ACCEPT_SYNA_EULA" ]; then
+    _PROMPT_SYNA_EULA=0
+    if [ "$ACCEPT_SYNA_EULA" == "1" ]; then
+        _SYNA_EULA_ACCEPTED=1
+    fi
+elif [ "$_CONFIGS_FOUND" ]; then
+    _LICENSE_FLAGS_STR="$(grep LICENSE_FLAGS_ACCEPTED ${_BUILDDIR}/conf/local.conf)"
+    if [[ "$_LICENSE_FLAGS_STR" == *"$_SYNA_EULA_STR"* ]]; then
+        # EULA has already been accepted so we can skip the prompt
+        _PROMPT_SYNA_EULA=0
+    fi
+fi
+
+if [ $_PROMPT_SYNA_EULA -eq 1 ]; then
+    if [ ! -f $_SYNA_EULA_FILE ]; then
+        echo "The Synaptics End User License Agreement file is missing! Please check your environment."
+    else
+        more -d $_SYNA_EULA_FILE
+        _RESPONSE=
+        while [ -z "$_RESPONSE" ]; do
+            echo -n "Do you accept the terms of the Synaptics End User License Agreement? (y/n) "
+            read _RESPONSE
+            case "$_RESPONSE" in
+                y|Y)
+                    echo "The terms of the Synaptics End User License Agreement have been accepted."
+                    _SYNA_EULA_ACCEPTED=1
+                    ;;
+                n|N)
+                    echo "The terms of the Synaptics End User License Agreement have been declined."
+                    _SYNA_EULA_ACCEPTED=0
+                    ;;
+                *)
+                    echo "Invalid Response, please try again"
+                    _RESPONSE=
+                    ;;
+            esac
+        done
+        unset _RESPONSE
+    fi
+fi
+
 _PWD_PREV=$(pwd)
 
 # Warning: Sourcing the oe-init-build-env script changes the current directory.
 
 TEMPLATECONF=${_PWD_PREV}/meta-synaptics/setup/conf source poky/oe-init-build-env ${_BUILDDIR}
 
+_CONFIG_UPDATED=0
+_LICENSE_FLAGS_STR="$(grep LICENSE_FLAGS_ACCEPTED conf/local.conf)"
+if [ $_SYNA_EULA_ACCEPTED -eq 1 ] && [ "$_LICENSE_FLAGS_STR" != *"$_SYNA_EULA_STR"* ]; then
+    _UPDATED_LICENSE_ACCEPTED_STR="${_LICENSE_FLAGS_STR%*\"} $_SYNA_EULA_STR\""
+    sed -i "s/$_LICENSE_FLAGS_STR/$_UPDATED_LICENSE_ACCEPTED_STR/" conf/local.conf
+    if [ $? -eq 0 ]; then
+        _CONFIG_UPDATED=1
+    fi
+fi
+unset _SYNA_EULA_STR _SYNA_EULA_FILE _PROMPT_SYNA_EULA _SYNA_EULA_ACCEPTED _LICENSE_FLAGS_STR _UPDATED_LICENSE_ACCEPTED_STR
+
 if [ "$_CONFIGS_FOUND" ]; then
-    echo -e "\nConfig files already exist in folder ${_BUILDDIR}/conf/, they were not modified."
+    if [ $_CONFIG_UPDATED -eq 1 ]; then
+        echo -e "\nConfig files already exist in folder ${_BUILDDIR}/conf/, only LICENSE_FLAGS_ACCEPTED has been updated."
+    else
+        echo -e "\nConfig files already exist in folder ${_BUILDDIR}/conf/, they were not modified."
+    fi
     unset -f usage
-    unset _BUILDDIR _CONFIGS_FOUND _PWD_PREV MACHINE
+    unset _BUILDDIR _CONFIGS_FOUND _PWD_PREV MACHINE _CONFIG_UPDATED
     return 0
 fi
+unset _CONFIG_UPDATED
 
 # Check the machine type specified
 _VALID_MACHINES=$(\ls -1 ${_PWD_PREV}/*{,/*}/conf/machine/${MACHINE}.conf 2>/dev/null | wc -l)

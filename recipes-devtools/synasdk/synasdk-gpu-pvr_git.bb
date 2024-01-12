@@ -1,6 +1,7 @@
 DESCRIPTION = "Synaptics ImaginationTech PowerVR GPU binary files"
 SECTION = "libs"
 LICENSE = "CLOSED"
+LICENSE_FLAGS = "Synaptics-EULA"
 
 PR = "r1"
 

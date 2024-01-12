@@ -1,6 +1,7 @@
 DESCRIPTION = "Synaptics SDK tools"
 SECTION = "devtools"
 LICENSE = "CLOSED"
+LICENSE_FLAGS = "Synaptics-EULA"
 
 PR = "r1"
 
