@@ -1,0 +1,53 @@
+From 0761c1acc123247effbc4701609662df70a1819f Mon Sep 17 00:00:00 2001
+From: Xiaomei Shang <xiaomei.shang@synaptics.com>
+Date: Fri, 2 Feb 2024 23:06:18 +0800
+Subject: [PATCH] xnnpack disable fp16 and assemble for cortex-a73
+
+- dolphin cpu armv8 has no fp16 extention instruction
+- disable assemble because of much dependent inter code
+  basically prod/neondot/fp16 doesn't support
+---
+ CMakeLists.txt | 4 +++-
+ src/init.c     | 4 ++--
+ 2 files changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index d53c48a..0597991 100755
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -23,7 +23,7 @@ SET(CMAKE_CXX_EXTENSIONS NO)
+ # ---[ Options.
+ SET(XNNPACK_LIBRARY_TYPE "default" CACHE STRING "Type of library (shared, static, or default) to build")
+ SET_PROPERTY(CACHE XNNPACK_LIBRARY_TYPE PROPERTY STRINGS default static shared)
+-OPTION(XNNPACK_ENABLE_ASSEMBLY "Build XNNPACK with assembly micro-kernels" ON)
++OPTION(XNNPACK_ENABLE_ASSEMBLY "Build XNNPACK with assembly micro-kernels" OFF)
+ OPTION(XNNPACK_ENABLE_JIT "Build XNNPACK with JIT micro-kernels" OFF)
+ OPTION(XNNPACK_ENABLE_MEMOPT "Build XNNPACK with optimized memory allocation scheme" ON)
+ OPTION(XNNPACK_ENABLE_SPARSE "Build XNNPACK with graph rewriting for sparse inference" ON)
+@@ -45,6 +45,8 @@ IF(XNNPACK_BUILD_TESTS)
+   ENABLE_TESTING()
+ ENDIF()
+ 
++ADD_DEFINITIONS(-DXNN_NO_F16_OPERATORS=1)
++
+ IF(XNNPACK_ENABLE_ASSEMBLY)
+   ADD_DEFINITIONS(-DXNN_ENABLE_ASSEMBLY=1)
+ ELSE()
+diff --git a/src/init.c b/src/init.c
+index 72a230a..11be9a4 100644
+--- a/src/init.c
++++ b/src/init.c
+@@ -3057,8 +3057,8 @@ static void init(void) {
+         xnn_params.f32.gemm.mr = 6;
+         xnn_params.f32.gemm.nr = 8;
+ 
+-        xnn_params.f32.gemm2.minmax.gemm[XNN_MR_TO_INDEX(4)] = xnn_init_hmp_gemm_ukernel((xnn_gemm_ukernel_function) xnn_f32_gemm_minmax_ukernel_4x2__neonfma_lane_ld64);
+-        xnn_params.f32.gemm2.minmax.igemm[XNN_MR_TO_INDEX(4)] = xnn_init_hmp_igemm_ukernel((xnn_igemm_ukernel_function) xnn_f32_igemm_minmax_ukernel_4x2__neonfma_lane_ld64);
++        // xnn_params.f32.gemm2.minmax.gemm[XNN_MR_TO_INDEX(4)] = xnn_init_hmp_gemm_ukernel((xnn_gemm_ukernel_function) xnn_f32_gemm_minmax_ukernel_4x2__neonfma_lane_ld64);
++        // xnn_params.f32.gemm2.minmax.igemm[XNN_MR_TO_INDEX(4)] = xnn_init_hmp_igemm_ukernel((xnn_igemm_ukernel_function) xnn_f32_igemm_minmax_ukernel_4x2__neonfma_lane_ld64);
+         xnn_params.f32.gemm2.init.f32 = xnn_init_f32_minmax_scalar_params;
+         xnn_params.f32.gemm2.mr = 4;
+         xnn_params.f32.gemm2.nr = 2;
+-- 
+2.17.1
+

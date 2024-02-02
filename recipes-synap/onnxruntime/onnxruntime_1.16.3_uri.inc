@@ -50,7 +50,9 @@ SRC_URI[nsync.md5sum] = "c509bd168201394c479df5028a20a9ba"
 SRC_URI[nsync.sha1sum] = "f3233450cf7156fc0bedd1b0e884eddec264897c"
 SRC_URI[nsync.sha256sum] = "f0798b4ab5705641c0f8d3dc7feed0451b4c7c294f23ebd4439079a212045d67"
 
-SRC_URI += "https://github.com/google/XNNPACK/archive/003c580e696a774afdc984996ee909b7c8d8128c.zip;name=xnnpack;subdir=git/_deps/"
+SRC_URI += "https://github.com/google/XNNPACK/archive/003c580e696a774afdc984996ee909b7c8d8128c.zip;name=xnnpack;subdir=git/_deps/ \
+    file://0001-xnnpack-disable-fp16-and-assemble-for-cortex-a73.patch;patchdir=_deps/XNNPACK-003c580e696a774afdc984996ee909b7c8d8128c \
+"
 SRC_URI[xnnpack.md5sum] = "e1624645d1da2626b64ddee2cfe46eb5"
 SRC_URI[xnnpack.sha1sum] = "9f192e3f15e1e37ae9c78d53eeea47e45c5eb31c"
 SRC_URI[xnnpack.sha256sum] = "32fadc91d9d7d624223b3c4091b66509d3215d1ff6a47ef086cc0809b4978b20"
