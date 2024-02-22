@@ -19,6 +19,7 @@ SYNAREALMACH:sl1680 = "sl1680"
 EXTRA_FW_DEPENDS = ""
 EXTRA_FW_DEPENDS:dolphin = "synasdk-fw-enc:do_deploy"
 EXTRA_FW_DEPENDS:platypus = "synasdk-fw-enc:do_deploy"
+DEPENDS += "android-tools-native"
 
 
 # the emmc_part_list that is required by some ROOTFS_POSTPROCESS_COMMAND functions is installed
@@ -283,10 +284,41 @@ IMAGE_CMD:synaimg () {
                   /firmware_a/firmware /firmware_b/firmware \
                   /fastlogo/fastlogo /fastlogo_a/fastlogo /fastlogo_b/fastlogo"
 
-    for i in $subimg_list; do
+# Add emmc_part_list and emmc_image_list to the deployed image
+    cp ${DEPLOY_DIR_IMAGE}/emmc_image_list ${DEPLOY_DIR_IMAGE}/emmc_part_list ${DEPLOY_DIR_IMAGE}/${SYNAIMG_DEPLOY_SUBDIR}
+
+    for i in ${subimg_list}; do
         subimg_name=`echo $mapping_list | grep -o "/${i}\(_[a|b]\)\?/[[:alnum:]_-]*" | head -1 | cut -d / -f3`
-        if [ -n "$subimg_name" ] && [ -f ${DEPLOY_DIR_IMAGE}/$subimg_name.subimg ]; then
+        if [ -n "${subimg_name}" ] && [ -f ${DEPLOY_DIR_IMAGE}/${subimg_name}.subimg ]; then
             cat ${DEPLOY_DIR_IMAGE}/$subimg_name.subimg | gzip -1 > ${DEPLOY_DIR_IMAGE}/${SYNAIMG_DEPLOY_SUBDIR}/$i.subimg.gz
+
+            rm -f ${DEPLOY_DIR_IMAGE}/${subimg_name}_s.subimg
+            rm -f ${DEPLOY_DIR_IMAGE}/${subimg_name}_s.subimg.[0-9]*
+            # Sparse subimg larger than 4G or gzip subimg larger than 300M
+            if [  $(stat -c %s ${DEPLOY_DIR_IMAGE}/${SYNAIMG_DEPLOY_SUBDIR}/${i}.subimg.gz) -gt 314572800 ] || \
+               [  $(stat -c %s ${DEPLOY_DIR_IMAGE}/${subimg_name}.subimg) -ge 4294967296 ]; then
+                img2simg ${DEPLOY_DIR_IMAGE}/${subimg_name}.subimg ${DEPLOY_DIR_IMAGE}/${subimg_name}_s.subimg 4096
+                if [  $(stat -c %s ${DEPLOY_DIR_IMAGE}/${subimg_name}_s.subimg) -gt 314572800 ]; then
+                    simg2simg ${DEPLOY_DIR_IMAGE}/${subimg_name}_s.subimg ${DEPLOY_DIR_IMAGE}/${subimg_name}_s.subimg 314572800
+                fi
+            fi
+            if [ -f ${DEPLOY_DIR_IMAGE}/${subimg_name}_s.subimg.0 ]; then
+                # Copy split images ang update emmc_image_list
+                subimg_line=$(grep -m1 "^$i.subimg.gz" ${DEPLOY_DIR_IMAGE}/${SYNAIMG_DEPLOY_SUBDIR}/emmc_image_list)
+                split_num=$(ls ${DEPLOY_DIR_IMAGE}/${subimg_name}_s.subimg.[0-9]*|wc -l)
+                j=0
+                while [ $j -lt $split_num ]
+                do
+                    cp ${DEPLOY_DIR_IMAGE}/${subimg_name}_s.subimg.$j ${DEPLOY_DIR_IMAGE}/${SYNAIMG_DEPLOY_SUBDIR}/${i}_s.subimg.$j
+                    split_subimg_line=$(echo $subimg_line|sed 's/'$i'.subimg.gz/'$i'_s.subimg.'$j'/')
+                    sed -i '/'$subimg_line'/i '$split_subimg_line'' ${DEPLOY_DIR_IMAGE}/${SYNAIMG_DEPLOY_SUBDIR}/emmc_image_list
+                    j=$(expr $j + 1)
+                done
+                sed -i '/'$subimg_line'/d' ${DEPLOY_DIR_IMAGE}/${SYNAIMG_DEPLOY_SUBDIR}/emmc_image_list
+            elif [ -f ${DEPLOY_DIR_IMAGE}/${subimg_name}_s.subimg ]; then
+                cp ${DEPLOY_DIR_IMAGE}/${subimg_name}_s.subimg ${DEPLOY_DIR_IMAGE}/${SYNAIMG_DEPLOY_SUBDIR}/${i}_s.subimg
+                sed -i 's/^'$i'.subimg.gz/'$i'_s.subimg/' ${DEPLOY_DIR_IMAGE}/${SYNAIMG_DEPLOY_SUBDIR}/emmc_image_list
+            fi
         elif [ "$i" = "fastlogo" -o "$i" = "fastlogo_a" -o "$i" = "fastlogo_b" ]; then
         # Add fastlogo to the deployed image
             [ -f ${DEPLOY_DIR_IMAGE}/fastlogo.subimg.gz ] && cp ${DEPLOY_DIR_IMAGE}/fastlogo.subimg.gz ${DEPLOY_DIR_IMAGE}/${SYNAIMG_DEPLOY_SUBDIR}/$i.subimg.gz
@@ -295,8 +327,6 @@ IMAGE_CMD:synaimg () {
             exit 1
         fi
     done
-# Add emmc_part_list and emmc_image_list to the deployed image
-    cp ${DEPLOY_DIR_IMAGE}/emmc_image_list ${DEPLOY_DIR_IMAGE}/emmc_part_list ${DEPLOY_DIR_IMAGE}/${SYNAIMG_DEPLOY_SUBDIR}
 }
 
 fstab_mount_opt () {

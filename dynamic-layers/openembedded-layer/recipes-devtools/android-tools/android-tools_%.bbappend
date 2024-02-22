@@ -4,4 +4,7 @@ SRC_URI += " \
     file://android-tools-adbd.service \
 "
 
+#Need not use mkbootimg here
+TOOLS:class-native:remove = "mkbootimg"
+
 RDEPENDS:${PN}-adbd = "${PN}-conf-configfs"
