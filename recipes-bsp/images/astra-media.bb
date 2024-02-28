@@ -1,5 +1,17 @@
 IMAGE_FEATURES:append = " debug-tweaks package-management ssh-server-dropbear"
 
+TEE_TZK= " \
+    tee-supplicant \
+    synasdk-tee \
+"
+
+TEE_OPTEE = " \
+    optee-client \
+    optee-os-tadevkit \
+    optee-examples \
+    optee-test \
+"
+
 IMAGE_INSTALL:append = " \
     gdbserver \
     curl \
@@ -8,10 +20,8 @@ IMAGE_INSTALL:append = " \
     weston \
     weston-init \
     weston-examples \
-    tee-supplicant \
     i2c-tools \
     v4l-utils \
-    synasdk-tee \
     synasdk-drivers-axi-meter \
     synasdk-drivers-fxl6408 \
     synasdk-drivers-bluetooth-lpm \
@@ -55,6 +65,7 @@ IMAGE_INSTALL:append = " \
 "
 
 IMAGE_INSTALL:append:myna2 = " \
+    ${TEE_OPTEE} \
     synasdk-drivers-dspg-hookswitch \
     synasdk-drivers-dspg-keypad \
     synasdk-drivers-rtl8363nb \
@@ -65,6 +76,7 @@ IMAGE_INSTALL:append:myna2 = " \
 "
 
 PLATYPUS_DOLPHIN_INSTALL = " \
+    ${TEE_TZK} \
     synasdk-drivers-sm \
     synasdk-drivers-i2c-dyndmx-pinctrl \
     synasdk-drivers-phy-berlin-pcie \
