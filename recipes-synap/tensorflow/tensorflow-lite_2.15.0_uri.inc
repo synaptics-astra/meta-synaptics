@@ -20,7 +20,6 @@ SRCREV_psimd = "072586a71b55b7f8c584153d223e95687148a900"
 
 SRC_URI += " \
   git://github.com/abseil/abseil-cpp.git;protocol=https;branch=lts_2023_01_25;name=abseil;destsuffix=git/_deps/abseil-cpp \
-  git://github.com/pytorch/cpuinfo.git;protocol=https;branch=main;name=cpuinfo;destsuffix=git/_deps/cpuinfo \
   git://github.com/google/farmhash.git;protocol=https;branch=master;name=farmhash;destsuffix=git/_deps/farmhash \
   git://github.com/google/flatbuffers.git;protocol=https;branch=master;name=flatbuffers;destsuffix=git/_deps/flatbuffers \
   git://github.com/google/gemmlowp.git;protocol=https;branch=master;name=gemmlowp;destsuffix=git/_deps/gemmlowp \
@@ -35,7 +34,12 @@ SRC_URI += " \
 SRC_URI[apachelicense.sha256sum] = "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
 
 SRC_URI += " \
-  git://github.com/synaptics-synap/XNNPACK.git;protocol=https;branch=syna-v2;name=xnnpack;destsuffix=git/_deps/xnnpack \
+  git://github.com/pytorch/cpuinfo.git;protocol=https;branch=main;name=cpuinfo;destsuffix=git/_deps/cpuinfo \
+  file://0001-fix-cpuinfo-cmake_system_processor-confliction.patch;patchdir=_deps/cpuinfo \
+"
+
+SRC_URI += " \
+  git://github.com/syna-synap/XNNPACK.git;protocol=https;branch=syna-v2;name=xnnpack;destsuffix=git/_deps/xnnpack \
   file://0001-set-fxdiv-fp16-pthreadpool-cpuinfo-dir.patch;patchdir=_deps/xnnpack \
 "
 

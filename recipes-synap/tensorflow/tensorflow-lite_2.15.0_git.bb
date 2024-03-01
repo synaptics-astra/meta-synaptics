@@ -7,6 +7,8 @@ SRCREV_FORMAT = "tf"
 SRCREV_tf = "53d32166e6fd0f48d00feb3e1a7522625c0bf8d4"
 SRC_URI = "git://github.com/synaptics-synap/tensorflow.git;protocol=https;branch=syna-v2.15.0-1;name=tf "
 
+SRC_URI:append:armv7a = "file://0001-fix-unimplemented-functions.patch"
+
 require tensorflow-lite_2.15.0_uri.inc
 
 SRC_URI += "\
