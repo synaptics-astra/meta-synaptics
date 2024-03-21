@@ -20,6 +20,7 @@ IMAGE_INSTALL:append = " \
     synasdk-drivers-tps6286x \
     synasdk-drivers-dwc3-syna \
     synasdk-drivers-phy-syna-usb \
+    synasdk-videosdk \
     alsa-utils \
     gstreamer1.0-meta-base \
     gstreamer1.0-meta-video \
@@ -70,7 +71,6 @@ PLATYPUS_DOLPHIN_INSTALL = " \
     synasdk-brcm-bt-start \
     imgtec-pvr-firmware \
     syna-trusted-app \
-    synasdk-videosdk \
     synasdk-synap-module \
     tim-vx \
     libdrm-tests \
