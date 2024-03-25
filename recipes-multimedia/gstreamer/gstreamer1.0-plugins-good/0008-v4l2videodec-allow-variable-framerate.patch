@@ -1,7 +1,7 @@
-From 78282260f46f3b078827daf61fa75615e9b0a2b0 Mon Sep 17 00:00:00 2001
+From 41272f059dedadf230f528063499c783281096f0 Mon Sep 17 00:00:00 2001
 From: "Hsia-Jun(Randy) Li" <randy.li@synaptics.com>
 Date: Wed, 7 Dec 2022 18:25:32 +0800
-Subject: [PATCH 08/12] v4l2videodec: allow variable framerate
+Subject: [PATCH 08/13] v4l2videodec: allow variable framerate
 
 Most of hardware decoders do not care about framerate.
 Adding a fixed value here to prevent negotiate failing.

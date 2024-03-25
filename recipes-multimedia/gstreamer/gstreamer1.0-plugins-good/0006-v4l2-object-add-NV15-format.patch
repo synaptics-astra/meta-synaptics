@@ -1,7 +1,7 @@
-From a0f68e3f27da16e33ba3a83294f513765ae9e089 Mon Sep 17 00:00:00 2001
+From 4f58480f53b17d6f71fac03bb036614a22e4c29c Mon Sep 17 00:00:00 2001
 From: "Hsia-Jun(Randy) Li" <randy.li@synaptics.com>
 Date: Wed, 22 Mar 2023 16:51:48 +0800
-Subject: [PATCH 06/12] v4l2: object: add NV15 format
+Subject: [PATCH 06/13] v4l2: object: add NV15 format
 
 ---
  .../gst-plugins-good/sys/v4l2/gstv4l2object.c  | 18 +++++++++++++++++-

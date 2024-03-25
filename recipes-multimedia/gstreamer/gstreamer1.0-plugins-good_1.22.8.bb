@@ -9,14 +9,14 @@ SRC_URI = "https://gstreamer.freedesktop.org/src/gst-plugins-good/gst-plugins-go
            file://0001-v4l2-Define-ioctl_req_t-for-posix-linux-case.patch \
            file://0003-v4l2object-clear-old-fds-in-poll-when-closing-v4l2ob.patch;striplevel=3 \
            file://0004-v4l2-update-v4l2-header.patch;striplevel=3 \
-           file://0005-v4l2-object-use-the-stride-from-the-driver.patch;striplevel=3 \
+           file://0005-v4l2-use-the-strides-and-offsets-from-the-driver.patch;striplevel=3 \
            file://0006-v4l2-object-add-NV15-format.patch;striplevel=3 \
            file://0007-v4l2object-add-probing-of-colorspace-bt2100-pq.patch;striplevel=3 \
            file://0008-v4l2videodec-allow-variable-framerate.patch;striplevel=3 \
            file://0009-v4l2-Enable-AV1-stateful-decoder.patch;striplevel=3 \
            file://0010-v4l2bufferpool-fix-enqueue-buffer-counter.patch;striplevel=3 \
-           file://0011-WIP-v4l2videodec-src_ch-resume.patch;striplevel=3 \
-           file://0012-v4l2bufferpool-raw-copying-for-video-frame.patch;striplevel=3 \
+           file://0011-v4l2videodec-src_ch-resume.patch;striplevel=3 \
+           file://0012-v4l2videodec-ensure-finish-dispatchs-pending.patch;striplevel=3 \
            "
 
 SRC_URI[sha256sum] = "e305b9f07f52743ca481da0a4e0c76c35efd60adaf1b0694eb3bb021e2137e39"

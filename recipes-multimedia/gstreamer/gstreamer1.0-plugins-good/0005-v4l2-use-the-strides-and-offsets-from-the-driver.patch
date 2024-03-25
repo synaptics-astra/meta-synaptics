@@ -1,12 +1,33 @@
-From 3ba3f1b25be62ae6c0aa41fc8acd34aa98a4db4a Mon Sep 17 00:00:00 2001
+From 5fd3402bad8c3c20b1992418b3e3fe56256b8969 Mon Sep 17 00:00:00 2001
 From: "Hsia-Jun(Randy) Li" <randy.li@synaptics.com>
 Date: Tue, 26 Sep 2023 15:37:18 +0800
-Subject: [PATCH 05/12] v4l2: object: use the stride from the driver
+Subject: [PATCH 05/13] v4l2: use the strides and offsets from the driver
 
+The negotiation could endup a size much larger than the driver
+could support.
 ---
+ .../sys/v4l2/gstv4l2bufferpool.c              |  7 +++
  .../gst-plugins-good/sys/v4l2/gstv4l2object.c | 49 +++++++------------
- 1 file changed, 17 insertions(+), 32 deletions(-)
+ 2 files changed, 24 insertions(+), 32 deletions(-)
 
+diff --git a/subprojects/gst-plugins-good/sys/v4l2/gstv4l2bufferpool.c b/subprojects/gst-plugins-good/sys/v4l2/gstv4l2bufferpool.c
+index 58c209929b..92b83dbfba 100644
+--- a/subprojects/gst-plugins-good/sys/v4l2/gstv4l2bufferpool.c
++++ b/subprojects/gst-plugins-good/sys/v4l2/gstv4l2bufferpool.c
+@@ -624,6 +624,13 @@ gst_v4l2_buffer_pool_set_config (GstBufferPool * bpool, GstStructure * config)
+ 
+   /* keep a GstVideoInfo with defaults for the when we need to copy */
+   gst_video_info_from_caps (&pool->caps_info, caps);
++  for (guint i = 0; i < GST_VIDEO_INFO_N_PLANES(&obj->info); i++) {
++    GST_VIDEO_INFO_PLANE_OFFSET(&pool->caps_info, i) =
++      GST_VIDEO_INFO_PLANE_OFFSET(&obj->info, i);
++    GST_VIDEO_INFO_PLANE_STRIDE(&pool->caps_info, i) =
++      GST_VIDEO_INFO_PLANE_STRIDE(&obj->info, i);
++  }
++  GST_VIDEO_INFO_SIZE(&pool->caps_info) = GST_VIDEO_INFO_SIZE(&obj->info);
+ 
+ done:
+   ret = GST_BUFFER_POOL_CLASS (parent_class)->set_config (bpool, config);
 diff --git a/subprojects/gst-plugins-good/sys/v4l2/gstv4l2object.c b/subprojects/gst-plugins-good/sys/v4l2/gstv4l2object.c
 index 9736cd5bf5..701bb5ef82 100644
 --- a/subprojects/gst-plugins-good/sys/v4l2/gstv4l2object.c

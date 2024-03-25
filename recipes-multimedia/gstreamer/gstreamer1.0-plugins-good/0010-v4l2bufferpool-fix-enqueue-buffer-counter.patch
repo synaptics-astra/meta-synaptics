@@ -1,7 +1,7 @@
-From 1df3faac06e8d03677599133a36c440c74446048 Mon Sep 17 00:00:00 2001
+From f736636793856c0cdd08f22659cf02dbcf78f742 Mon Sep 17 00:00:00 2001
 From: "Hsia-Jun(Randy) Li" <randy.li@synaptics.com>
 Date: Tue, 20 Feb 2024 15:48:56 +0800
-Subject: [PATCH 10/12] v4l2bufferpool: fix enqueue buffer counter
+Subject: [PATCH 10/13] v4l2bufferpool: fix enqueue buffer counter
 
 If the kernel driver returns a valid buffer, it is obviously
 not in the kernel queue anymore.
@@ -14,10 +14,10 @@ Signed-off-by: Hsia-Jun(Randy) Li <randy.li@synaptics.com>
  1 file changed, 16 insertions(+), 8 deletions(-)
 
 diff --git a/subprojects/gst-plugins-good/sys/v4l2/gstv4l2bufferpool.c b/subprojects/gst-plugins-good/sys/v4l2/gstv4l2bufferpool.c
-index 58c209929b..5017bc7f41 100644
+index 92b83dbfba..9ebbd93735 100644
 --- a/subprojects/gst-plugins-good/sys/v4l2/gstv4l2bufferpool.c
 +++ b/subprojects/gst-plugins-good/sys/v4l2/gstv4l2bufferpool.c
-@@ -1278,23 +1278,31 @@ gst_v4l2_buffer_pool_dqbuf (GstV4l2BufferPool * pool, GstBuffer ** buffer,
+@@ -1285,23 +1285,31 @@ gst_v4l2_buffer_pool_dqbuf (GstV4l2BufferPool * pool, GstBuffer ** buffer,
          group->buffer.index);
    }
  

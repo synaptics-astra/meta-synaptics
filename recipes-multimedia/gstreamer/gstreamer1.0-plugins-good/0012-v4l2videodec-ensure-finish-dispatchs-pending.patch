@@ -1,0 +1,76 @@
+From 7ab9de52a37cb69b6c739d5a5045fca9616415c4 Mon Sep 17 00:00:00 2001
+From: "Hsia-Jun(Randy) Li" <randy.li@synaptics.com>
+Date: Mon, 15 Apr 2024 16:02:46 +0800
+Subject: [PATCH 12/13] v4l2videodec: ensure finish() dispatchs pending
+
+The last valid frame could be in a new sequence.
+JIRA:
+VSSDK-28805
+---
+ .../gst-plugins-good/sys/v4l2/gstv4l2videodec.c   | 15 ++++++++++++---
+ .../gst-plugins-good/sys/v4l2/gstv4l2videodec.h   |  1 +
+ 2 files changed, 13 insertions(+), 3 deletions(-)
+
+diff --git a/subprojects/gst-plugins-good/sys/v4l2/gstv4l2videodec.c b/subprojects/gst-plugins-good/sys/v4l2/gstv4l2videodec.c
+index 6dc675cc9f..2780724313 100644
+--- a/subprojects/gst-plugins-good/sys/v4l2/gstv4l2videodec.c
++++ b/subprojects/gst-plugins-good/sys/v4l2/gstv4l2videodec.c
+@@ -604,8 +604,7 @@ gst_v4l2_video_dec_finish (GstVideoDecoder * decoder)
+ 
+   GST_VIDEO_DECODER_STREAM_UNLOCK (decoder);
+ 
+-  /* If we are in the middle of a source change, cancel it */
+-  self->draining = FALSE;
++  g_atomic_int_set (&self->completing, TRUE);
+ 
+   if (gst_v4l2_decoder_cmd (self->v4l2output, V4L2_DEC_CMD_STOP, 0)) {
+     GstTask *task;
+@@ -647,6 +646,7 @@ gst_v4l2_video_dec_finish (GstVideoDecoder * decoder)
+    * occurred. */
+   gst_v4l2_object_unlock (self->v4l2capture);
+   gst_pad_stop_task (decoder->srcpad);
++  g_atomic_int_set (&self->completing, FALSE);
+   GST_VIDEO_DECODER_STREAM_LOCK (decoder);
+ 
+   if (ret == GST_FLOW_FLUSHING)
+@@ -778,8 +778,13 @@ gst_v4l2_video_dec_src_ch_handle (GstV4l2VideoDec * self)
+       return;
+     }
+ 
+-    if (gst_v4l2_decoder_cmd (self->v4l2output, V4L2_DEC_CMD_START, 0))
++    if (gst_v4l2_decoder_cmd (self->v4l2output, V4L2_DEC_CMD_START, 0)) {
++      if (g_atomic_int_get (&self->completing))
++        if (gst_v4l2_decoder_cmd (self->v4l2output, V4L2_DEC_CMD_STOP, 0))
++          g_atomic_int_set (&self->completing, FALSE);
++
+       return;
++    }
+   }
+   /* TODO: we didn't handle less buffer or memory requirement case */
+   gst_video_codec_state_unref (output_state);
+@@ -820,6 +825,10 @@ gst_v4l2_video_dec_loop (GstVideoDecoder * decoder)
+         GST_VIDEO_DECODER_STREAM_UNLOCK (decoder);
+         goto beach;
+       }
++
++      if (g_atomic_int_get (&self->completing))
++        if (gst_v4l2_decoder_cmd (self->v4l2output, V4L2_DEC_CMD_STOP, 0))
++          g_atomic_int_set (&self->completing, FALSE);
+     }
+ 
+     /* just a safety, as introducing mistakes in negotiation seems rather
+diff --git a/subprojects/gst-plugins-good/sys/v4l2/gstv4l2videodec.h b/subprojects/gst-plugins-good/sys/v4l2/gstv4l2videodec.h
+index fbbfb60b01..1d6f000d29 100644
+--- a/subprojects/gst-plugins-good/sys/v4l2/gstv4l2videodec.h
++++ b/subprojects/gst-plugins-good/sys/v4l2/gstv4l2videodec.h
+@@ -62,6 +62,7 @@ struct _GstV4l2VideoDec
+   GstVideoCodecState *input_state;
+   gboolean active;
+   GstFlowReturn output_flow;
++  gboolean completing;
+ 
+   /* Source Change Events */
+   gboolean wait_for_source_change;
+-- 
+2.17.1
+

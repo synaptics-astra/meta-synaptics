@@ -1,23 +1,23 @@
-From 72df4684ee2b6edf181844ab3f59c16a3aee9398 Mon Sep 17 00:00:00 2001
+From 346b699fc33c86bc15b5e475d968619ee7818491 Mon Sep 17 00:00:00 2001
 From: "Hsia-Jun(Randy) Li" <randy.li@synaptics.com>
 Date: Thu, 7 Dec 2023 15:20:04 +0800
-Subject: [PATCH 11/12] [WIP]: v4l2videodec: src_ch resume
+Subject: [PATCH 11/13] v4l2videodec: src_ch resume
 
 We could skip a buffer allocation if the buffer requirement is
 the same.
 
 Signed-off-by: Hsia-Jun(Randy) Li <randy.li@synaptics.com>
 ---
- .../sys/v4l2/gstv4l2bufferpool.c              | 51 +++++++++++++++++++
+ .../sys/v4l2/gstv4l2bufferpool.c              | 66 +++++++++++++++++--
  .../sys/v4l2/gstv4l2bufferpool.h              |  2 +
- .../sys/v4l2/gstv4l2videodec.c                | 46 ++++++++++++++++-
- 3 files changed, 98 insertions(+), 1 deletion(-)
+ .../sys/v4l2/gstv4l2videodec.c                | 46 ++++++++++++-
+ 3 files changed, 108 insertions(+), 6 deletions(-)
 
 diff --git a/subprojects/gst-plugins-good/sys/v4l2/gstv4l2bufferpool.c b/subprojects/gst-plugins-good/sys/v4l2/gstv4l2bufferpool.c
-index 5017bc7f41..7d7bf9f6c3 100644
+index 9ebbd93735..9877edb488 100644
 --- a/subprojects/gst-plugins-good/sys/v4l2/gstv4l2bufferpool.c
 +++ b/subprojects/gst-plugins-good/sys/v4l2/gstv4l2bufferpool.c
-@@ -717,6 +717,57 @@ streamon_failed:
+@@ -724,6 +724,59 @@ streamon_failed:
    }
  }
  
@@ -40,8 +40,9 @@ index 5017bc7f41..7d7bf9f6c3 100644
 +
 +        GST_OBJECT_LOCK (pool);
 +        n = pool->num_allocated;
-+        num_queued = g_atomic_int_get (&pool->num_queued);
 +        GST_OBJECT_UNLOCK (pool);
++
++        num_queued = g_atomic_int_get (&pool->num_queued);
 +        if (num_queued >= n)
 +          return FALSE;
 +
@@ -51,7 +52,7 @@ index 5017bc7f41..7d7bf9f6c3 100644
 +         * so the driver don't underflow immediately. As we have put then back
 +         * into the base class queue, resurrect them, then releasing will queue
 +         * them back. */
-+        for (i = 0; i < n; i++)
++        for (i = 0; i < n; i++) {
 +          if (!g_atomic_int_get(&pool->buffer_state[i])) {
 +            GstBuffer *buffer = pool->buffers[i];
 +            GstBufferPool *bpool = GST_BUFFER_POOL (pool);
@@ -59,6 +60,7 @@ index 5017bc7f41..7d7bf9f6c3 100644
 +            gst_v4l2_buffer_pool_complete_release_buffer (bpool, buffer, FALSE);
 +            num_queued++;
 +          }
++        }
 +
 +        g_signal_handler_unblock (pool->vallocator, pool->group_released_handler);
 +
@@ -75,6 +77,30 @@ index 5017bc7f41..7d7bf9f6c3 100644
  /* Call with streamlock held, or when streaming threads are down */
  static void
  gst_v4l2_buffer_pool_streamoff (GstV4l2BufferPool * pool)
+@@ -1677,15 +1730,18 @@ gst_v4l2_buffer_pool_release_buffer (GstBufferPool * bpool, GstBuffer * buffer)
+   gboolean queued = FALSE;
+ 
+   if (gst_v4l2_is_buffer_valid (buffer, &group)) {
+-    gint old_buffer_state =
+-        g_atomic_int_and (&pool->buffer_state[group->buffer.index],
++    queued = (g_atomic_int_get (&pool->buffer_state[group->buffer.index])
++              & BUFFER_STATE_QUEUED) != 0;
++
++    gst_v4l2_buffer_pool_complete_release_buffer (bpool, buffer, queued);
++
++    g_atomic_int_and (&pool->buffer_state[group->buffer.index],
+         ~BUFFER_STATE_OUTSTANDING);
+-    queued = (old_buffer_state & BUFFER_STATE_QUEUED) != 0;
+     GST_LOG_OBJECT (pool, "mark buffer %u not outstanding",
+         group->buffer.index);
++  } else {
++    gst_v4l2_buffer_pool_complete_release_buffer (bpool, buffer, queued);
+   }
+-
+-  gst_v4l2_buffer_pool_complete_release_buffer (bpool, buffer, queued);
+ }
+ 
+ static void
 diff --git a/subprojects/gst-plugins-good/sys/v4l2/gstv4l2bufferpool.h b/subprojects/gst-plugins-good/sys/v4l2/gstv4l2bufferpool.h
 index db8c554306..fce8f03c51 100644
 --- a/subprojects/gst-plugins-good/sys/v4l2/gstv4l2bufferpool.h
