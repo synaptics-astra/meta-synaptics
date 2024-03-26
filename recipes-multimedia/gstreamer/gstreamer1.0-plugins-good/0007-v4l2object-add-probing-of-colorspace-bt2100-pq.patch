@@ -1,0 +1,36 @@
+From 633349a5b7df9793880a02d3c8f65119abc59b1e Mon Sep 17 00:00:00 2001
+From: "Hsia-Jun(Randy) Li" <randy.li@synaptics.com>
+Date: Wed, 20 Dec 2023 15:59:46 +0800
+Subject: [PATCH 07/12] v4l2object: add probing of colorspace bt2100-pq
+
+We should also add bt2020-10, bt2100-hlg here but V4L2 don't
+have their transfer functions' defination.
+---
+ subprojects/gst-plugins-good/sys/v4l2/gstv4l2object.c | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+diff --git a/subprojects/gst-plugins-good/sys/v4l2/gstv4l2object.c b/subprojects/gst-plugins-good/sys/v4l2/gstv4l2object.c
+index a2f4aae834..41f1763bff 100644
+--- a/subprojects/gst-plugins-good/sys/v4l2/gstv4l2object.c
++++ b/subprojects/gst-plugins-good/sys/v4l2/gstv4l2object.c
+@@ -2521,6 +2521,17 @@ gst_v4l2_object_add_colorspace (GstV4l2Object * v4l2object, GstStructure * s,
+           else
+             alt_fmt.fmt.pix.quantization = V4L2_QUANTIZATION_FULL_RANGE;
+ 
++          if (gst_v4l2_object_get_colorspace (v4l2object, &alt_fmt, &cinfo))
++            gst_v4l2_object_fill_colorimetry_list (&list, &cinfo);
++        } else if (colorspace == V4L2_COLORSPACE_BT2020) {
++          /* support bt2100-pq */
++          memcpy (&alt_fmt, &fmt, sizeof (alt_fmt));
++
++          if (V4L2_TYPE_IS_MULTIPLANAR (v4l2object->type))
++            alt_fmt.fmt.pix_mp.xfer_func = V4L2_XFER_FUNC_SMPTE2084;
++          else
++            alt_fmt.fmt.pix.xfer_func = V4L2_XFER_FUNC_SMPTE2084;
++
+           if (gst_v4l2_object_get_colorspace (v4l2object, &alt_fmt, &cinfo))
+             gst_v4l2_object_fill_colorimetry_list (&list, &cinfo);
+         }
+-- 
+2.17.1
+

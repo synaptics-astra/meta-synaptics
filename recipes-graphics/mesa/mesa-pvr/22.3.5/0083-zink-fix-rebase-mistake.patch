@@ -1,0 +1,29 @@
+From a687fef70621b9383a02c83e85937aa8845d7aef Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Wed, 7 Dec 2022 09:27:28 +0100
+Subject: [PATCH 083/168] zink: fix rebase-mistake
+
+This should not have re-introduced this lowering, effectively reverting
+dcf3ae72abf78e8959c5b5a94ef332c0b7396ab2.
+
+Fixes: 16971cd667b ("zink: add driver-workaround for missing gl_point_size")
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/20195>
+---
+ src/gallium/drivers/zink/zink_program.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/src/gallium/drivers/zink/zink_program.c b/src/gallium/drivers/zink/zink_program.c
+index 9843ce13582..a90e13e202a 100644
+--- a/src/gallium/drivers/zink/zink_program.c
++++ b/src/gallium/drivers/zink/zink_program.c
+@@ -1893,7 +1893,6 @@ zink_set_primitive_emulation_keys(struct zink_context *ctx)
+                ctx->gfx_stages[prev_vertex_stage]->nir,
+                lower_line_stipple ? SHADER_PRIM_LINE_STRIP :  SHADER_PRIM_POINTS,
+                lower_line_stipple ? 2 : 1);
+-            NIR_PASS_V(nir, nir_lower_gs_intrinsics, nir_lower_gs_intrinsics_per_stream);
+ 
+             struct zink_shader *shader = zink_shader_create(screen, nir, NULL);
+             ctx->gfx_stages[prev_vertex_stage]->non_fs.generated_gs = shader;
+-- 
+2.17.1
+

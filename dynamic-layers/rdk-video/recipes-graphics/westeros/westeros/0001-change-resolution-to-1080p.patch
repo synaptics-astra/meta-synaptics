@@ -1,0 +1,82 @@
+diff --git a/westeros-compositor.cpp b/westeros-compositor.cpp
+index 74e68be..4e7277f 100644
+--- a/westeros-compositor.cpp
++++ b/westeros-compositor.cpp
+@@ -67,8 +67,8 @@
+ #define MAX_NESTED_NAME_LEN (32)
+ 
+ #define DEFAULT_FRAME_RATE (60)
+-#define DEFAULT_OUTPUT_WIDTH (1280)
+-#define DEFAULT_OUTPUT_HEIGHT (720)
++#define DEFAULT_OUTPUT_WIDTH (1920)
++#define DEFAULT_OUTPUT_HEIGHT (1080)
+ #define DEFAULT_NESTED_WIDTH (1280)
+ #define DEFAULT_NESTED_HEIGHT (720)
+ 
+diff --git a/westeros-render.cpp b/westeros-render.cpp
+index f5d5d55..1ccd059 100644
+--- a/westeros-render.cpp
++++ b/westeros-render.cpp
+@@ -27,8 +27,8 @@
+ #include "westeros-nested.h"
+ #include "westeros-render.h"
+ 
+-#define DEFAULT_OUTPUT_WIDTH (1280)
+-#define DEFAULT_OUTPUT_HEIGHT (720)
++#define DEFAULT_OUTPUT_WIDTH (1920)
++#define DEFAULT_OUTPUT_HEIGHT (1080)
+ 
+ #define WESTEROS_UNUSED(x) ((void)(x))
+ 
+diff --git a/westeros-main.cpp b/westeros-main.cpp
+index 0d140bb..5d5546e 100644
+--- a/westeros-main.cpp
++++ b/westeros-main.cpp
+@@ -1321,8 +1321,8 @@ AppCtx* initApp()
+    appCtx= (AppCtx*)calloc( 1, sizeof(AppCtx) );
+    if ( appCtx )
+    {
+-      appCtx->windowWidth= 1280;
+-      appCtx->windowHeight= 720;
++      appCtx->windowWidth= 1920;
++      appCtx->windowHeight= 1080;
+ 
+       #if defined (WESTEROS_PLATFORM_EMBEDDED)
+       appCtx->inputCtx= (InputCtx*)calloc( 1, sizeof(InputCtx) );
+@@ -1344,7 +1344,7 @@ AppCtx* initApp()
+       glutInit(&argc,argv);
+       glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA );
+       glutInitWindowPosition(0,0);
+-      glutInitWindowSize(1280, 720);
++      glutInitWindowSize(1920, 1080);
+       
+       sprintf( appCtx->title, "Westeros-%d", getpid() );
+       appCtx->glutWindowId= glutCreateWindow(appCtx->title);
+diff --git a/essos/essos.cpp b/essos/essos.cpp
+--- a/essos/essos.cpp
++++ b/essos/essos.cpp
+@@ -55,8 +55,8 @@
+ 
+ #define ESS_UNUSED(x) ((void)x)
+ #define ESS_MAX_ERROR_DETAIL (512)
+-#define DEFAULT_PLANE_WIDTH (1280)
+-#define DEFAULT_PLANE_HEIGHT (720)
++#define DEFAULT_PLANE_WIDTH (1920)
++#define DEFAULT_PLANE_HEIGHT (1080)
+ #define DEFAULT_PLANE_SAFE_BORDER_PERCENT (5)
+ #define DEFAULT_KEY_REPEAT_DELAY (500)
+ #define DEFAULT_KEY_REPEAT_PERIOD (100)
+diff --git a/westeros-test.cpp b/westeros-test.cpp
+--- a/westeros-test.cpp	2020-06-25 19:46:34.823346586 +0800
++++ b/westeros-test.cpp	2020-06-25 19:48:37.515648555 +0800
+@@ -1143,8 +1143,8 @@
+    ctx.registry= registry;
+    ctx.planeX= 0;
+    ctx.planeY= 0;
+-   ctx.planeWidth= 1280;
+-   ctx.planeHeight= 720;
++   ctx.planeWidth= 1920;
++   ctx.planeHeight= 1080;
+    wl_registry_add_listener(registry, &registryListener, &ctx);
+    
+    wl_display_roundtrip(ctx.display);

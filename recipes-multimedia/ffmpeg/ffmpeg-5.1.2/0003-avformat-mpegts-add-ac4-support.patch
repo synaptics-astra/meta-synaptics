@@ -1,0 +1,45 @@
+From f5d095ec68077a97c9f4272365545d902b2e8dc1 Mon Sep 17 00:00:00 2001
+From: Henry Wang <Henry.Wang@synaptics.com>
+Date: Wed, 4 Aug 2021 19:59:40 +0800
+Subject: [PATCH 3/7] avformat/mpegts: add ac4 support
+
+  - Add AC4 support for mpeg transport stream container
+  - https://jira.synaptics.com/browse/VSSDK-13729
+
+Test Result:
+  ampclient_samples 2 -2 /data/Atmos_Complex_Content_AC4_H265_DVB_50fps.trp
+  ampclient_samples 2 -2 /data/Dual_1PID_PC3_Atmos_UMX_14_AJOC_AC4_H265_DVB_50fps.trp
+
+Impacts:
+  libavformat.so
+
+Original CL: https://sc-debu-git.synaptics.com/gerrit/144662
+
+Change-Id: I3d628e0ed77f3f265fc9a2446e55818302ec26ac
+Reviewed-on: https://gerrit-sha.synaptics.com/gerrit/176784
+Reviewed-by: Zhe Tong <Zhe.Tong@synaptics.com>
+Reviewed-by: Yanyan Peng <Yanyan.Peng@synaptics.com>
+---
+ libavformat/mpegts.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/libavformat/mpegts.c b/libavformat/mpegts.c
+index 8a3436f2be..0ce0786a58 100644
+--- a/libavformat/mpegts.c
++++ b/libavformat/mpegts.c
+@@ -2105,6 +2105,12 @@ int ff_parse_mpeg2_descriptor(AVFormatContext *fc, AVStream *st, int stream_type
+                     av_dict_set(&st->metadata, "language", language, 0);
+             }
+         }
++        if (ext_desc_tag == 0x15) { /* AC-4 descriptor */
++            st->codecpar->codec_type = AVMEDIA_TYPE_AUDIO;
++            st->codecpar->codec_id = AV_CODEC_ID_AC4;
++            sti->need_context_update = 1;
++            sti->request_probe = 0;
++        }
+         break;
+     case 0x6a: /* ac-3_descriptor */
+         {
+-- 
+2.17.1
+

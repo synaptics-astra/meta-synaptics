@@ -1,0 +1,13 @@
+diff --git a/src/bluetooth.service.in b/src/bluetooth.service.in
+index beb98ce..6e413b7 100644
+--- a/src/bluetooth.service.in
++++ b/src/bluetooth.service.in
+@@ -4,7 +4,7 @@ Documentation=man:bluetoothd(8)
+ ConditionPathIsDirectory=/sys/class/bluetooth
+ 
+ [Service]
+-Type=dbus
++Type=notify
+ BusName=org.bluez
+ ExecStart=@pkglibexecdir@/bluetoothd
+ NotifyAccess=main

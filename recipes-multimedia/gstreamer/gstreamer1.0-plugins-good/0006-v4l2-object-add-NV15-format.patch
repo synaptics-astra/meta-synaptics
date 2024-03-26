@@ -1,0 +1,81 @@
+From a0f68e3f27da16e33ba3a83294f513765ae9e089 Mon Sep 17 00:00:00 2001
+From: "Hsia-Jun(Randy) Li" <randy.li@synaptics.com>
+Date: Wed, 22 Mar 2023 16:51:48 +0800
+Subject: [PATCH 06/12] v4l2: object: add NV15 format
+
+---
+ .../gst-plugins-good/sys/v4l2/gstv4l2object.c  | 18 +++++++++++++++++-
+ 1 file changed, 17 insertions(+), 1 deletion(-)
+
+diff --git a/subprojects/gst-plugins-good/sys/v4l2/gstv4l2object.c b/subprojects/gst-plugins-good/sys/v4l2/gstv4l2object.c
+index 701bb5ef82..a2f4aae834 100644
+--- a/subprojects/gst-plugins-good/sys/v4l2/gstv4l2object.c
++++ b/subprojects/gst-plugins-good/sys/v4l2/gstv4l2object.c
+@@ -156,6 +156,8 @@ static const GstV4L2FormatDesc gst_v4l2_formats[] = {
+   {V4L2_PIX_FMT_NV12MT_16X16, TRUE, GST_V4L2_RAW},
+   {V4L2_PIX_FMT_NV12M_8L128, TRUE, GST_V4L2_RAW},
+   {V4L2_PIX_FMT_NV12M_10BE_8L128, TRUE, GST_V4L2_RAW},
++  {V4L2_PIX_FMT_NV15, TRUE, GST_V4L2_RAW},
++  {V4L2_PIX_FMT_NV15M, TRUE, GST_V4L2_RAW},
+   {V4L2_PIX_FMT_NV21, TRUE, GST_V4L2_RAW},
+   {V4L2_PIX_FMT_NV21M, TRUE, GST_V4L2_RAW},
+   {V4L2_PIX_FMT_NV16, TRUE, GST_V4L2_RAW},
+@@ -1101,6 +1103,8 @@ gst_v4l2_object_format_get_rank (const struct v4l2_fmtdesc *fmt)
+     case V4L2_PIX_FMT_MM21:    /* NV12 Y 16x32, UV 16x16 tile */
+     case V4L2_PIX_FMT_NV12M_8L128:
+     case V4L2_PIX_FMT_NV12M_10BE_8L128:
++    case V4L2_PIX_FMT_NV15:
++    case V4L2_PIX_FMT_NV15M:
+       rank = YUV_ODD_BASE_RANK;
+       break;
+ 
+@@ -1387,6 +1391,10 @@ gst_v4l2_object_v4l2fourcc_to_video_format (guint32 fourcc)
+     case V4L2_PIX_FMT_NV12M_10BE_8L128:
+       format = GST_VIDEO_FORMAT_NV12_10BE_8L128;
+       break;
++    case V4L2_PIX_FMT_NV15:
++    case V4L2_PIX_FMT_NV15M:
++      format = GST_VIDEO_FORMAT_NV12_10LE40;
++      break;
+     case V4L2_PIX_FMT_NV21:
+     case V4L2_PIX_FMT_NV21M:
+       format = GST_VIDEO_FORMAT_NV21;
+@@ -1560,6 +1568,8 @@ gst_v4l2_object_v4l2fourcc_to_bare_struct (guint32 fourcc)
+     case V4L2_PIX_FMT_MM21:
+     case V4L2_PIX_FMT_NV12M_8L128:
+     case V4L2_PIX_FMT_NV12M_10BE_8L128:
++    case V4L2_PIX_FMT_NV15:
++    case V4L2_PIX_FMT_NV15M:
+     case V4L2_PIX_FMT_NV21:    /* 12  Y/CrCb 4:2:0  */
+     case V4L2_PIX_FMT_NV21M:
+     case V4L2_PIX_FMT_NV16:    /* 16  Y/CbCr 4:2:2  */
+@@ -1867,6 +1877,10 @@ gst_v4l2_object_get_caps_info (GstV4l2Object * v4l2object, GstCaps * caps,
+       case GST_VIDEO_FORMAT_NV12_10BE_8L128:
+         fourcc_nc = V4L2_PIX_FMT_NV12M_10BE_8L128;
+         break;
++      case GST_VIDEO_FORMAT_NV12_10LE40:
++        fourcc = V4L2_PIX_FMT_NV15;
++        fourcc_nc = V4L2_PIX_FMT_NV15M;
++        break;
+       case GST_VIDEO_FORMAT_NV21:
+         fourcc = V4L2_PIX_FMT_NV21;
+         fourcc_nc = V4L2_PIX_FMT_NV21M;
+@@ -2492,12 +2506,14 @@ gst_v4l2_object_add_colorspace (GstV4l2Object * v4l2object, GstStructure * s,
+         colorspace = fmt.fmt.pix.colorspace;
+ 
+       if (colorspace == req_cspace) {
++        struct v4l2_format alt_fmt;
++
+         if (gst_v4l2_object_get_colorspace (v4l2object, &fmt, &cinfo))
+           gst_v4l2_object_fill_colorimetry_list (&list, &cinfo);
++
+         if (colorspace == V4L2_COLORSPACE_REC709) {
+           /* support for full-range variants of colorspaces V4L2_COLORSPACE_REC709
+            * (such as Apple's full-range bt709 variant 1:3:5:1) */
+-          struct v4l2_format alt_fmt;
+           memcpy (&alt_fmt, &fmt, sizeof (alt_fmt));
+ 
+           if (V4L2_TYPE_IS_MULTIPLANAR (v4l2object->type))
+-- 
+2.17.1
+

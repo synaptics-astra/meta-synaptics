@@ -1,0 +1,47 @@
+From ddc569368babf7ee8ebd3fb558fa78fe88b2b417 Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Thu, 9 Feb 2023 09:22:14 -0500
+Subject: [PATCH 145/168] zink: set PIPE_CAP_SURFACE_REINTERPRET_BLOCKS
+
+this fixes perf for CompressedTexSubImage and makes DOOM2016 run at full speed
+
+ref #8223
+
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/21218>
+---
+ src/gallium/drivers/zink/zink_resource.c | 4 ++++
+ src/gallium/drivers/zink/zink_screen.c   | 3 +++
+ 2 files changed, 7 insertions(+)
+
+diff --git a/src/gallium/drivers/zink/zink_resource.c b/src/gallium/drivers/zink/zink_resource.c
+index da97fe94c29..65e404d532b 100644
+--- a/src/gallium/drivers/zink/zink_resource.c
++++ b/src/gallium/drivers/zink/zink_resource.c
+@@ -460,6 +460,10 @@ create_ici(struct zink_screen *screen, VkImageCreateInfo *ici, const struct pipe
+    ici->usage = 0;
+    ici->queueFamilyIndexCount = 0;
+ 
++   /* assume we're going to be doing some CompressedTexSubImage */
++   if (util_format_is_compressed(templ->format) && (ici->flags & VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT))
++      ici->flags |= VK_IMAGE_CREATE_BLOCK_TEXEL_VIEW_COMPATIBLE_BIT;
++
+    if (templ->flags & PIPE_RESOURCE_FLAG_SPARSE)
+       ici->flags |= VK_IMAGE_CREATE_SPARSE_BINDING_BIT | VK_IMAGE_CREATE_SPARSE_RESIDENCY_BIT;
+ 
+diff --git a/src/gallium/drivers/zink/zink_screen.c b/src/gallium/drivers/zink/zink_screen.c
+index 0d15f30e467..136dc401874 100644
+--- a/src/gallium/drivers/zink/zink_screen.c
++++ b/src/gallium/drivers/zink/zink_screen.c
+@@ -512,6 +512,9 @@ zink_get_param(struct pipe_screen *pscreen, enum pipe_cap param)
+    case PIPE_CAP_NATIVE_FENCE_FD:
+       return screen->instance_info.have_KHR_external_semaphore_capabilities && screen->info.have_KHR_external_semaphore_fd;
+ 
++   case PIPE_CAP_SURFACE_REINTERPRET_BLOCKS:
++      return screen->info.have_vulkan11 || screen->info.have_KHR_maintenance2;
++
+    case PIPE_CAP_ALLOW_MAPPED_BUFFERS_DURING_EXECUTION:
+    case PIPE_CAP_MAP_UNSYNCHRONIZED_THREAD_SAFE:
+    case PIPE_CAP_SHAREABLE_SHADERS:
+-- 
+2.17.1
+

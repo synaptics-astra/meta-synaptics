@@ -1,0 +1,296 @@
+From 292557cbb930e3e1bfe2f6432fcf4aa3a5b9f80f Mon Sep 17 00:00:00 2001
+From: "Hsia-Jun(Randy) Li" <randy.li@synaptics.com>
+Date: Tue, 6 Dec 2022 14:08:01 +0800
+Subject: [PATCH 7/7] avcodec/v4l2_m2m_dec: resolve resolution change
+
+It shouldn't allocate buffer before the resolution
+change event appeared in decoder setup.
+
+And it should not apply to new resolution before
+the buffer from the previous sequence is dequeued.
+
+Change-Id: Id04550b0f17e1501b670a3bcbdd860d5836259bf
+Signed-off-by: Hsia-Jun(Randy) Li <randy.li@synaptics.com>
+---
+ libavcodec/v4l2_context.c | 114 +++++++++++++++++++++++++++-----------
+ libavcodec/v4l2_context.h |   6 ++
+ libavcodec/v4l2_m2m.c     |  12 ++--
+ libavcodec/v4l2_m2m_dec.c |  14 +++--
+ 4 files changed, 102 insertions(+), 44 deletions(-)
+
+diff --git a/libavcodec/v4l2_context.c b/libavcodec/v4l2_context.c
+index e891649f92..6ef2f5f50b 100644
+--- a/libavcodec/v4l2_context.c
++++ b/libavcodec/v4l2_context.c
+@@ -81,15 +81,36 @@ static AVRational v4l2_get_sar(V4L2Context *ctx)
+     return sar;
+ }
+ 
++static inline unsigned int v4l2_sizeimage_changed(struct v4l2_pix_format_mplane *fmt1,
++                                                  struct v4l2_pix_format_mplane *fmt2)
++{
++    unsigned int i;
++
++    if (fmt1->num_planes != fmt2->num_planes)
++        return 1;
++
++
++    for (i = 0; i < fmt2->num_planes; i++) {
++        if (fmt1->plane_fmt[i].sizeimage < fmt2->plane_fmt[i].sizeimage)
++            return 1;
++    }
++
++    return 0;
++}
++
+ static inline unsigned int v4l2_resolution_changed(V4L2Context *ctx, struct v4l2_format *fmt2)
+ {
+     struct v4l2_format *fmt1 = &ctx->format;
+     int ret =  V4L2_TYPE_IS_MULTIPLANAR(ctx->type) ?
++        fmt1->fmt.pix_mp.pixelformat != fmt2->fmt.pix_mp.pixelformat ||
+         fmt1->fmt.pix_mp.width != fmt2->fmt.pix_mp.width ||
+-        fmt1->fmt.pix_mp.height != fmt2->fmt.pix_mp.height
++        fmt1->fmt.pix_mp.height != fmt2->fmt.pix_mp.height ||
++        v4l2_sizeimage_changed(&fmt1->fmt.pix_mp, &fmt2->fmt.pix_mp)
+         :
++        fmt1->fmt.pix.pixelformat != fmt2->fmt.pix.pixelformat ||
+         fmt1->fmt.pix.width != fmt2->fmt.pix.width ||
+-        fmt1->fmt.pix.height != fmt2->fmt.pix.height;
++        fmt1->fmt.pix.height != fmt2->fmt.pix.height ||
++        fmt1->fmt.pix.sizeimage != fmt2->fmt.pix.sizeimage;
+ 
+     if (ret)
+         av_log(logger(ctx), AV_LOG_DEBUG, "%s changed (%dx%d) -> (%dx%d)\n",
+@@ -169,30 +190,17 @@ static int v4l2_start_decode(V4L2Context *ctx)
+ }
+ 
+ /**
+- * handle resolution change event and end of stream event
++ * handle resolution change event
+  * returns 1 if reinit was successful, negative if it failed
+  * returns 0 if reinit was not executed
+  */
+-static int v4l2_handle_event(V4L2Context *ctx)
++static int v4l2_handle_dyn_res_change(V4L2Context *ctx)
+ {
+     V4L2m2mContext *s = ctx_to_m2mctx(ctx);
+     struct v4l2_format cap_fmt = s->capture.format;
+-    struct v4l2_event evt = { 0 };
+     int ret;
+ 
+-    ret = ioctl(s->fd, VIDIOC_DQEVENT, &evt);
+-    if (ret < 0) {
+-        av_log(logger(ctx), AV_LOG_ERROR, "%s VIDIOC_DQEVENT\n", ctx->name);
+-        return 0;
+-    }
+-
+-    if (evt.type == V4L2_EVENT_EOS) {
+-        ctx->done = 1;
+-        return 0;
+-    }
+-
+-    if (evt.type != V4L2_EVENT_SOURCE_CHANGE)
+-        return 0;
++    cap_fmt.type = s->capture.type;
+ 
+     ret = ioctl(s->fd, VIDIOC_G_FMT, &cap_fmt);
+     if (ret) {
+@@ -201,11 +209,13 @@ static int v4l2_handle_event(V4L2Context *ctx)
+     }
+ 
+     if (v4l2_resolution_changed(&s->capture, &cap_fmt)) {
++        s->capture.format.fmt.pix_mp.pixelformat = cap_fmt.fmt.pix_mp.pixelformat;
+         s->capture.height = v4l2_get_height(&cap_fmt);
+         s->capture.width = v4l2_get_width(&cap_fmt);
+         s->capture.sample_aspect_ratio = v4l2_get_sar(&s->capture);
+     } else {
+         v4l2_start_decode(ctx);
++        ctx->pending_res_change = 0;
+         return 0;
+     }
+ 
+@@ -222,10 +232,41 @@ static int v4l2_handle_event(V4L2Context *ctx)
+         return AVERROR(EINVAL);
+     }
+ 
++    ctx->pending_res_change = 0;
+     /* reinit executed */
+     return 1;
+ }
+ 
++/**
++ * capture resolution change event and end of stream event
++ * returns 1 or negative if it failed
++ * returns 0 if nothing went wrong
++ */
++static int v4l2_handle_event(V4L2Context *ctx)
++{
++    V4L2m2mContext *s = ctx_to_m2mctx(ctx);
++    struct v4l2_event evt = { 0 };
++    int ret;
++
++    ret = ioctl(s->fd, VIDIOC_DQEVENT, &evt);
++    if (ret < 0) {
++        av_log(logger(ctx), AV_LOG_ERROR, "%s VIDIOC_DQEVENT\n", ctx->name);
++        return errno;
++    }
++
++    if (evt.type == V4L2_EVENT_EOS) {
++        ctx->done = 1;
++        return 0;
++    }
++
++    if (evt.type != V4L2_EVENT_SOURCE_CHANGE)
++        return AVERROR(EINVAL);
++
++    ctx->pending_res_change = 1;
++
++    return 0;
++}
++
+ static int v4l2_stop_decode(V4L2Context *ctx)
+ {
+     struct v4l2_decoder_cmd cmd = {
+@@ -342,16 +383,19 @@ start:
+     /* 1. handle resolution changes */
+     if (pfd.revents & POLLPRI) {
+         ret = v4l2_handle_event(ctx);
+-        if (ret < 0) {
+-            /* if re-init failed, abort */
+-            ctx->done = 1;
+-            return NULL;
+-        }
+         if (ret) {
+-            /* if re-init was successful drop the buffer (if there was one)
+-             * since we had to reconfigure capture (unmap all buffers)
+-             */
++            /* if event handler failed, abort */
++            ctx->done = 1;
+             return NULL;
++        } else if (!V4L2_TYPE_IS_OUTPUT(ctx->type)) {
++            if (!ctx->streamon)
++                ret = v4l2_handle_dyn_res_change(ctx);
++                if (ret == 1)
++                    return NULL;
++        } else {
++            /* Poll the device again, we want the buffer with the flag
++             * that answer to the event */
++            return v4l2_dequeue_v4l2buf(ctx, timeout);
+         }
+     }
+ 
+@@ -391,17 +435,23 @@ dequeue:
+             return NULL;
+         }
+ 
+-        if (ctx_to_m2mctx(ctx)->draining && !V4L2_TYPE_IS_OUTPUT(ctx->type)) {
++        if (!V4L2_TYPE_IS_OUTPUT(ctx->type)) {
+             int bytesused = V4L2_TYPE_IS_MULTIPLANAR(buf.type) ?
+                             buf.m.planes[0].bytesused : buf.bytesused;
++
++#ifdef V4L2_BUF_FLAG_LAST
++            if (buf.flags & V4L2_BUF_FLAG_LAST) {
++                    if (ctx_to_m2mctx(ctx)->draining)
++                        ctx->done = 1;
++                    if (ctx->pending_res_change)
++                        ret = v4l2_handle_dyn_res_change(ctx);
++            }
++#endif
+             if (bytesused == 0) {
+-                ctx->done = 1;
++                if (ctx_to_m2mctx(ctx)->draining)
++                    ctx->done = 1;
+                 return NULL;
+             }
+-#ifdef V4L2_BUF_FLAG_LAST
+-            if (buf.flags & V4L2_BUF_FLAG_LAST)
+-                ctx->done = 1;
+-#endif
+         }
+ 
+         avbuf = &ctx->buffers[buf.index];
+diff --git a/libavcodec/v4l2_context.h b/libavcodec/v4l2_context.h
+index 6f7460c89a..b30457c5ad 100644
+--- a/libavcodec/v4l2_context.h
++++ b/libavcodec/v4l2_context.h
+@@ -87,6 +87,12 @@ typedef struct V4L2Context {
+      */
+     int streamon;
+ 
++    /**
++     * Pending resolution change event to handle. Only context for CAPTURE
++     * queue could set this flag.
++     */
++    int pending_res_change;
++
+     /**
+      *  Either no more buffers available or an unrecoverable error was notified
+      *  by the V4L2 kernel driver: once set the context has to be exited.
+diff --git a/libavcodec/v4l2_m2m.c b/libavcodec/v4l2_m2m.c
+index 984936004d..9bdcb8a917 100644
+--- a/libavcodec/v4l2_m2m.c
++++ b/libavcodec/v4l2_m2m.c
+@@ -162,12 +162,6 @@ static int v4l2_configure_contexts(V4L2m2mContext *s)
+         goto error;
+     }
+ 
+-    ret = ff_v4l2_context_set_format(&s->capture);
+-    if (ret) {
+-        av_log(log_ctx, AV_LOG_ERROR, "can't to set v4l2 capture format\n");
+-        goto error;
+-    }
+-
+     ret = ff_v4l2_context_init(&s->output);
+     if (ret) {
+         av_log(log_ctx, AV_LOG_ERROR, "no v4l2 output context's buffers\n");
+@@ -176,6 +170,12 @@ static int v4l2_configure_contexts(V4L2m2mContext *s)
+ 
+     /* decoder's buffers need to be updated at a later stage */
+     if (s->avctx && !av_codec_is_decoder(s->avctx->codec)) {
++        ret = ff_v4l2_context_set_format(&s->capture);
++        if (ret) {
++            av_log(log_ctx, AV_LOG_ERROR, "can't to set v4l2 capture format\n");
++            goto error;
++        }
++
+         ret = ff_v4l2_context_init(&s->capture);
+         if (ret) {
+             av_log(log_ctx, AV_LOG_ERROR, "no v4l2 capture context's buffers\n");
+diff --git a/libavcodec/v4l2_m2m_dec.c b/libavcodec/v4l2_m2m_dec.c
+index c99710268d..ebfd84b1b5 100644
+--- a/libavcodec/v4l2_m2m_dec.c
++++ b/libavcodec/v4l2_m2m_dec.c
+@@ -40,6 +40,7 @@ static int v4l2_try_start(AVCodecContext *avctx)
+     V4L2Context *const capture = &s->capture;
+     V4L2Context *const output = &s->output;
+     struct v4l2_selection selection = { 0 };
++    AVFrame frame;
+     int ret;
+ 
+     /* 1. start the output process */
+@@ -54,15 +55,16 @@ static int v4l2_try_start(AVCodecContext *avctx)
+     if (capture->streamon)
+         return 0;
+ 
+-    /* 2. get the capture format */
+-    capture->format.type = capture->type;
+-    ret = ioctl(s->fd, VIDIOC_G_FMT, &capture->format);
++    /* TODO wait event here */
++    ret = ff_v4l2_context_dequeue_frame(capture, &frame, 10);
+     if (ret) {
+-        av_log(avctx, AV_LOG_WARNING, "VIDIOC_G_FMT ioctl\n");
+-        return ret;
++        if (ret == AVERROR(EAGAIN))
++            ret = 0;
++        else
++            return ret;
+     }
+ 
+-    /* 2.1 update the AVCodecContext */
++    /* 2 update the AVCodecContext */
+     avctx->pix_fmt = ff_v4l2_format_v4l2_to_avfmt(capture->format.fmt.pix_mp.pixelformat, AV_CODEC_ID_RAWVIDEO);
+     capture->av_pix_fmt = avctx->pix_fmt;
+ 
+-- 
+2.17.1
+

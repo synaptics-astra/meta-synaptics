@@ -1,0 +1,187 @@
+From c0d7796e66051615f3388e430d61ccace233d4cb Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Fri, 20 Jan 2023 17:00:56 +0000
+Subject: [PATCH 130/168] zink: lower LOD-invalid txf when imageRobustAccess2
+ is missing
+
+GL robust buffer access applies to texelFetch with out of bounds LODs.
+imageRobustAccess2 guarantees this, but imageRobustAccess does not.
+Therefore, the txf robustness lowering pass from earlier is used
+to provide this guarantee and support ARB/KHR robust_buffer_access_behavior.
+
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/20808>
+---
+ src/gallium/drivers/zink/zink_compiler.c |  9 +++++++++
+ src/gallium/drivers/zink/zink_context.c  | 12 ++++++++++++
+ src/gallium/drivers/zink/zink_program.c  | 12 ++++++++----
+ src/gallium/drivers/zink/zink_screen.c   | 12 ++++++++++--
+ src/gallium/drivers/zink/zink_types.h    |  1 +
+ 5 files changed, 40 insertions(+), 6 deletions(-)
+
+diff --git a/src/gallium/drivers/zink/zink_compiler.c b/src/gallium/drivers/zink/zink_compiler.c
+index f9c965d4009..9ff54faa379 100644
+--- a/src/gallium/drivers/zink/zink_compiler.c
++++ b/src/gallium/drivers/zink/zink_compiler.c
+@@ -2968,6 +2968,8 @@ zink_shader_compile(struct zink_screen *screen, struct zink_shader *zs, nir_shad
+                NIR_PASS_V(nir, lower_drawid);
+             }
+          }
++         if (zink_vs_key_base(key)->robust_access)
++            NIR_PASS(need_optimize, nir, lower_txf_lod_robustness);
+          break;
+       case MESA_SHADER_FRAGMENT:
+          if (zink_fs_key(key)->lower_line_smooth) {
+@@ -2977,6 +2979,9 @@ zink_shader_compile(struct zink_screen *screen, struct zink_shader *zs, nir_shad
+          } else if (zink_fs_key(key)->lower_line_stipple)
+                NIR_PASS_V(nir, lower_line_stipple_fs);
+ 
++         if (zink_fs_key(key)->robust_access)
++            NIR_PASS(need_optimize, nir, lower_txf_lod_robustness);
++
+          if (!zink_fs_key_base(key)->samples &&
+             nir->info.outputs_written & BITFIELD64_BIT(FRAG_RESULT_SAMPLE_MASK)) {
+             /* VK will always use gl_SampleMask[] values even if sample count is 0,
+@@ -3022,6 +3027,10 @@ zink_shader_compile(struct zink_screen *screen, struct zink_shader *zs, nir_shad
+             need_optimize = true;
+          }
+          break;
++      case MESA_SHADER_COMPUTE:
++         if (zink_cs_key(key)->robust_access)
++            NIR_PASS(need_optimize, nir, lower_txf_lod_robustness);
++         break;
+       default: break;
+       }
+       if (key->base.nonseamless_cube_mask) {
+diff --git a/src/gallium/drivers/zink/zink_context.c b/src/gallium/drivers/zink/zink_context.c
+index 8a7b20ec6d8..6e5ce3b7290 100644
+--- a/src/gallium/drivers/zink/zink_context.c
++++ b/src/gallium/drivers/zink/zink_context.c
+@@ -4742,6 +4742,7 @@ zink_context_create(struct pipe_screen *pscreen, void *priv, unsigned flags)
+    struct zink_context *ctx = rzalloc(NULL, struct zink_context);
+    bool is_copy_only = (flags & ZINK_CONTEXT_COPY_ONLY) > 0;
+    bool is_compute_only = (flags & PIPE_CONTEXT_COMPUTE_ONLY) > 0;
++   bool is_robust = (flags & PIPE_CONTEXT_ROBUST_BUFFER_ACCESS) > 0;
+    if (!ctx)
+       goto fail;
+ 
+@@ -4859,6 +4860,17 @@ zink_context_create(struct pipe_screen *pscreen, void *priv, unsigned flags)
+       ctx->gfx_pipeline_state.shader_keys.key[MESA_SHADER_TESS_CTRL].size = sizeof(struct zink_tcs_key);
+       ctx->gfx_pipeline_state.shader_keys.key[MESA_SHADER_GEOMETRY].size = sizeof(struct zink_gs_key);
+       ctx->gfx_pipeline_state.shader_keys.key[MESA_SHADER_FRAGMENT].size = sizeof(struct zink_fs_key);
++
++      /* this condition must be updated if new fields are added to zink_cs_key */
++      if (screen->driver_workarounds.lower_robustImageAccess2)
++    	  ctx->compute_pipeline_state.key.size = sizeof(struct zink_cs_key);
++
++      if (is_robust && screen->driver_workarounds.lower_robustImageAccess2) {
++         ctx->compute_pipeline_state.key.key.cs.robust_access = true;
++         for (gl_shader_stage pstage = MESA_SHADER_VERTEX; pstage < MESA_SHADER_FRAGMENT; pstage++)
++            ctx->gfx_pipeline_state.shader_keys.key[pstage].key.vs_base.robust_access = true;
++         ctx->gfx_pipeline_state.shader_keys.key[MESA_SHADER_FRAGMENT].key.fs.robust_access = true;
++      }
+    }
+    _mesa_hash_table_init(&ctx->framebuffer_cache, ctx, hash_framebuffer_imageless, equals_framebuffer_imageless);
+    if (!zink_init_render_pass(ctx))
+diff --git a/src/gallium/drivers/zink/zink_program.c b/src/gallium/drivers/zink/zink_program.c
+index 2a3fad794e6..6d8b41b5707 100644
+--- a/src/gallium/drivers/zink/zink_program.c
++++ b/src/gallium/drivers/zink/zink_program.c
+@@ -707,6 +707,8 @@ update_cs_shader_module(struct zink_context *ctx, struct zink_compute_program *c
+    struct zink_shader_module *zm = NULL;
+    unsigned inline_size = 0, nonseamless_size = 0;
+    struct zink_shader_key *key = &ctx->compute_pipeline_state.key;
++   ASSERTED bool check_robustness = screen->driver_workarounds.lower_robustImageAccess2 && (ctx->flags & PIPE_CONTEXT_ROBUST_BUFFER_ACCESS);
++   assert(zink_cs_key(key)->robust_access == check_robustness);
+ 
+    if (ctx && zs->nir->info.num_inlinable_uniforms &&
+        ctx->inlinable_uniforms_valid_mask & BITFIELD64_BIT(MESA_SHADER_COMPUTE)) {
+@@ -718,7 +720,7 @@ update_cs_shader_module(struct zink_context *ctx, struct zink_compute_program *c
+    if (key->base.nonseamless_cube_mask)
+       nonseamless_size = sizeof(uint32_t);
+ 
+-   if (inline_size || nonseamless_size) {
++   if (inline_size || nonseamless_size || zink_cs_key(key)->robust_access) {
+       struct util_dynarray *shader_cache = &comp->shader_cache[!!nonseamless_size];
+       unsigned count = util_dynarray_num_elements(shader_cache, struct zink_shader_module *);
+       struct zink_shader_module **pzm = shader_cache->data;
+@@ -754,7 +756,7 @@ update_cs_shader_module(struct zink_context *ctx, struct zink_compute_program *c
+       zm->key_size = key->size;
+       memcpy(zm->key, key, key->size);
+       zm->has_nonseamless = !!nonseamless_size;
+-      assert(nonseamless_size || inline_size);
++      assert(nonseamless_size || inline_size || zink_cs_key(key)->robust_access);
+       if (nonseamless_size)
+          memcpy(zm->key + zm->key_size, &key->base.nonseamless_cube_mask, nonseamless_size);
+       if (inline_size)
+@@ -765,7 +767,7 @@ update_cs_shader_module(struct zink_context *ctx, struct zink_compute_program *c
+          comp->inlined_variant_count++;
+ 
+       /* this is otherwise the default variant, which is stored as comp->module */
+-      if (zm->num_uniforms || nonseamless_size)
++      if (zm->num_uniforms || nonseamless_size || zink_cs_key(key)->robust_access)
+          util_dynarray_append(&comp->shader_cache[!!nonseamless_size], void*, zm);
+    }
+    if (comp->curr == zm)
+@@ -1026,7 +1028,9 @@ create_compute_program(struct zink_context *ctx, nir_shader *nir)
+    comp->use_local_size = !(nir->info.workgroup_size[0] ||
+                             nir->info.workgroup_size[1] ||
+                             nir->info.workgroup_size[2]);
+-   comp->base.can_precompile = !comp->use_local_size && (screen->info.have_EXT_non_seamless_cube_map || !zink_shader_has_cubes(nir));
++   comp->base.can_precompile = !comp->use_local_size &&
++                               (screen->info.have_EXT_non_seamless_cube_map || !zink_shader_has_cubes(nir)) &&
++                               (screen->info.rb2_feats.robustImageAccess2 || !(ctx->flags & PIPE_CONTEXT_ROBUST_BUFFER_ACCESS));
+    _mesa_hash_table_init(&comp->pipelines, comp, NULL, comp->use_local_size ?
+                                                        equals_compute_pipeline_state_local_size :
+                                                        equals_compute_pipeline_state);
+diff --git a/src/gallium/drivers/zink/zink_screen.c b/src/gallium/drivers/zink/zink_screen.c
+index 90ff84e9cb3..0d15f30e467 100644
+--- a/src/gallium/drivers/zink/zink_screen.c
++++ b/src/gallium/drivers/zink/zink_screen.c
+@@ -576,7 +576,8 @@ zink_get_param(struct pipe_screen *pscreen, enum pipe_cap param)
+       return screen->info.feats.features.pipelineStatisticsQuery;
+ 
+    case PIPE_CAP_ROBUST_BUFFER_ACCESS_BEHAVIOR:
+-      return screen->info.feats.features.robustBufferAccess;
++      return screen->info.feats.features.robustBufferAccess &&
++             (screen->info.rb2_feats.robustImageAccess2 || screen->driver_workarounds.lower_robustImageAccess2);
+ 
+    case PIPE_CAP_MULTI_DRAW_INDIRECT:
+       return screen->info.feats.features.multiDrawIndirect;
+@@ -2426,6 +2427,12 @@ init_driver_workarounds(struct zink_screen *screen)
+       break;
+    }
+ 
++   /* When robust contexts are advertised but robustImageAccess2 is not available */
++   screen->driver_workarounds.lower_robustImageAccess2 =
++      !screen->info.rb2_feats.robustImageAccess2 &&
++      screen->info.feats.features.robustBufferAccess &&
++      screen->info.rb_image_feats.robustImageAccess;
++
+    /* once more testing has been done, use the #if 0 block */
+    if (zink_debug & ZINK_DEBUG_RP)
+       screen->driver_workarounds.track_renderpasses = true;
+@@ -2773,7 +2780,8 @@ zink_internal_create_screen(const struct pipe_screen_config *config)
+                           !screen->driconf.inline_uniforms &&
+                           !screen->driver_workarounds.no_linestipple &&
+                           !screen->driver_workarounds.no_linesmooth &&
+-                          !screen->driver_workarounds.no_hw_gl_point;
++                          !screen->driver_workarounds.no_hw_gl_point &&
++                          !screen->driver_workarounds.lower_robustImageAccess2;
+    if (!screen->optimal_keys)
+       screen->info.have_EXT_graphics_pipeline_library = false;
+ 
+diff --git a/src/gallium/drivers/zink/zink_types.h b/src/gallium/drivers/zink/zink_types.h
+index ac262b84e02..ce247ba3042 100644
+--- a/src/gallium/drivers/zink/zink_types.h
++++ b/src/gallium/drivers/zink/zink_types.h
+@@ -1287,6 +1287,7 @@ struct zink_screen {
+       bool no_linestipple;
+       bool no_linesmooth;
+       bool no_hw_gl_point;
++      bool lower_robustImageAccess2;
+       unsigned z16_unscaled_bias;
+       unsigned z24_unscaled_bias;
+    } driver_workarounds;
+-- 
+2.17.1
+

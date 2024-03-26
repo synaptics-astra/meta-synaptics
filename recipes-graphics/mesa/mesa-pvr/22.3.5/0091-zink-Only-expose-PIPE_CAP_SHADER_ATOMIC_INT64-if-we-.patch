@@ -1,0 +1,37 @@
+From 5cb7019231f39c6866493e2081dd77df2166d5b1 Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Tue, 3 Jan 2023 14:33:44 -0800
+Subject: [PATCH 091/168] zink: Only expose PIPE_CAP_SHADER_ATOMIC_INT64 if we
+ can do shared and ssbos.
+
+Fixes: 3ac0706aa83b ("zink: export PIPE_CAP_SHADER_ATOMIC_INT64")
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/20506>
+---
+ src/gallium/drivers/zink/ci/zink-anv-tgl-fails.txt | 14 --------------
+ 1 file changed, 14 deletions(-)
+
+diff --git a/src/gallium/drivers/zink/ci/zink-anv-tgl-fails.txt b/src/gallium/drivers/zink/ci/zink-anv-tgl-fails.txt
+index 76901167290..2414a7ba682 100644
+--- a/src/gallium/drivers/zink/ci/zink-anv-tgl-fails.txt
++++ b/src/gallium/drivers/zink/ci/zink-anv-tgl-fails.txt
+@@ -894,17 +894,3 @@ spec@khr_texture_compression_astc@sliced-3d-miptree-gl srgb-fp,Fail
+ spec@khr_texture_compression_astc@sliced-3d-miptree-gl srgb-fp@sRGB decode full precision,Fail
+ spec@khr_texture_compression_astc@sliced-3d-miptree-gles srgb-fp,Fail
+ spec@khr_texture_compression_astc@sliced-3d-miptree-gles srgb-fp@sRGB decode full precision,Fail
+-
+-# https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/20506
+-spec@nv_shader_atomic_int64@execution@shared-atomicadd-int,Fail
+-spec@nv_shader_atomic_int64@execution@shared-atomicand-int,Fail
+-spec@nv_shader_atomic_int64@execution@shared-atomicand-uint,Fail
+-spec@nv_shader_atomic_int64@execution@shared-atomiccompswap-int,Fail
+-spec@nv_shader_atomic_int64@execution@shared-atomicexchange-int,Fail
+-spec@nv_shader_atomic_int64@execution@shared-atomicmax-int,Fail
+-spec@nv_shader_atomic_int64@execution@shared-atomicmax-uint,Fail
+-spec@nv_shader_atomic_int64@execution@shared-atomicmin-int,Fail
+-spec@nv_shader_atomic_int64@execution@shared-atomicor-int,Fail
+-spec@nv_shader_atomic_int64@execution@shared-atomicor-uint,Fail
+-spec@nv_shader_atomic_int64@execution@shared-atomicxor-int,Fail
+-spec@nv_shader_atomic_int64@execution@shared-atomicxor-uint,Fail
+-- 
+2.17.1
+

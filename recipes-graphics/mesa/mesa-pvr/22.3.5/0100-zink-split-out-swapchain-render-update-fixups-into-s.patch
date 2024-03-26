@@ -1,0 +1,107 @@
+From 8f050379c262cfd210bf9462f6341aaaebdfef01 Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Fri, 6 Jan 2023 14:03:32 -0500
+Subject: [PATCH 100/168] zink: split out swapchain render update fixups into
+ separate function
+
+this needs to be more granular for corner cases
+
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/20584>
+---
+ src/gallium/drivers/zink/zink_context.c     |  4 ++-
+ src/gallium/drivers/zink/zink_render_pass.c | 34 +++++++++++++--------
+ src/gallium/drivers/zink/zink_render_pass.h |  4 ++-
+ 3 files changed, 27 insertions(+), 15 deletions(-)
+
+diff --git a/src/gallium/drivers/zink/zink_context.c b/src/gallium/drivers/zink/zink_context.c
+index 0e959e32714..b64dafdfc39 100644
+--- a/src/gallium/drivers/zink/zink_context.c
++++ b/src/gallium/drivers/zink/zink_context.c
+@@ -2301,7 +2301,9 @@ begin_rendering(struct zink_context *ctx)
+    unsigned clear_buffers = 0;
+    ctx->gfx_pipeline_state.render_pass = NULL;
+    zink_update_vk_sample_locations(ctx);
+-   zink_render_update_swapchain(ctx);
++   bool has_swapchain = zink_render_update_swapchain(ctx);
++   if (has_swapchain)
++      zink_render_fixup_swapchain(ctx);
+    bool has_depth = false;
+    bool has_stencil = false;
+    bool changed_layout = false;
+diff --git a/src/gallium/drivers/zink/zink_render_pass.c b/src/gallium/drivers/zink/zink_render_pass.c
+index ac134422c5d..8678f227741 100644
+--- a/src/gallium/drivers/zink/zink_render_pass.c
++++ b/src/gallium/drivers/zink/zink_render_pass.c
+@@ -589,7 +589,9 @@ setup_framebuffer(struct zink_context *ctx)
+    ctx->rp_loadop_changed = false;
+    ctx->rp_layout_changed = false;
+    ctx->rp_changed = false;
+-   zink_render_update_swapchain(ctx);
++
++   if (zink_render_update_swapchain(ctx))
++      zink_render_fixup_swapchain(ctx);
+ 
+    if (!ctx->fb_changed)
+       return;
+@@ -814,6 +816,23 @@ zink_init_render_pass(struct zink_context *ctx)
+ }
+ 
+ void
++zink_render_fixup_swapchain(struct zink_context *ctx)
++{
++   if ((ctx->swapchain_size.width || ctx->swapchain_size.height)) {
++      unsigned old_w = ctx->fb_state.width;
++      unsigned old_h = ctx->fb_state.height;
++      ctx->fb_state.width = ctx->swapchain_size.width;
++      ctx->fb_state.height = ctx->swapchain_size.height;
++      zink_kopper_fixup_depth_buffer(ctx);
++      if (ctx->fb_state.width != old_w || ctx->fb_state.height != old_h)
++         ctx->scissor_changed = true;
++      if (ctx->framebuffer)
++         zink_update_framebuffer_state(ctx);
++      ctx->swapchain_size.width = ctx->swapchain_size.height = 0;
++   }
++}
++
++bool
+ zink_render_update_swapchain(struct zink_context *ctx)
+ {
+    bool has_swapchain = false;
+@@ -827,16 +846,5 @@ zink_render_update_swapchain(struct zink_context *ctx)
+             zink_surface_swapchain_update(ctx, zink_csurface(ctx->fb_state.cbufs[i]));
+       }
+    }
+-   if (has_swapchain && (ctx->swapchain_size.width || ctx->swapchain_size.height)) {
+-      unsigned old_w = ctx->fb_state.width;
+-      unsigned old_h = ctx->fb_state.height;
+-      ctx->fb_state.width = ctx->swapchain_size.width;
+-      ctx->fb_state.height = ctx->swapchain_size.height;
+-      zink_kopper_fixup_depth_buffer(ctx);
+-      if (ctx->fb_state.width != old_w || ctx->fb_state.height != old_h)
+-         ctx->scissor_changed = true;
+-      if (ctx->framebuffer)
+-         zink_update_framebuffer_state(ctx);
+-      ctx->swapchain_size.width = ctx->swapchain_size.height = 0;
+-   }
++   return has_swapchain;
+ }
+diff --git a/src/gallium/drivers/zink/zink_render_pass.h b/src/gallium/drivers/zink/zink_render_pass.h
+index d3d74e20bfb..3d5bd417ab1 100644
+--- a/src/gallium/drivers/zink/zink_render_pass.h
++++ b/src/gallium/drivers/zink/zink_render_pass.h
+@@ -47,9 +47,11 @@ VkImageLayout
+ zink_tc_renderpass_info_parse(struct zink_context *ctx, const struct tc_renderpass_info *info, unsigned idx, VkPipelineStageFlags *pipeline, VkAccessFlags *access);
+ bool
+ zink_init_render_pass(struct zink_context *ctx);
+-void
++bool
+ zink_render_update_swapchain(struct zink_context *ctx);
+ void
++zink_render_fixup_swapchain(struct zink_context *ctx);
++void
+ zink_init_zs_attachment(struct zink_context *ctx, struct zink_rt_attrib *rt);
+ void
+ zink_init_color_attachment(struct zink_context *ctx, unsigned i, struct zink_rt_attrib *rt);
+-- 
+2.17.1
+

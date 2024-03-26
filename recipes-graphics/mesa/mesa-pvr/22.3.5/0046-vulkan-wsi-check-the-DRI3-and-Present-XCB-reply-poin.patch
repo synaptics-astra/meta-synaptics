@@ -1,0 +1,28 @@
+From 6189dd1b7120792a131dd214f9383540aafbb45b Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Mon, 21 Jun 2021 17:05:17 +0100
+Subject: [PATCH 046/168] vulkan/wsi: check the DRI3 and Present XCB reply
+ pointers
+
+Check that the DRI3 and Present version replies are not NULL
+before accessing the version fields.
+---
+ src/vulkan/wsi/wsi_common_x11.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/vulkan/wsi/wsi_common_x11.c b/src/vulkan/wsi/wsi_common_x11.c
+index a3c4538366f..535b6d10e0b 100644
+--- a/src/vulkan/wsi/wsi_common_x11.c
++++ b/src/vulkan/wsi/wsi_common_x11.c
+@@ -285,7 +285,7 @@ wsi_x11_connection_create(struct wsi_device *wsi_dev,
+ 
+       ver_cookie = xcb_present_query_version(conn, 1, 2);
+       ver_reply = xcb_present_query_version_reply(conn, ver_cookie, NULL);
+-      has_present_v1_2 =
++      has_present_v1_2 = ver_reply != NULL &&
+         (ver_reply->major_version > 1 || ver_reply->minor_version >= 2);
+       free(ver_reply);
+    }
+-- 
+2.17.1
+

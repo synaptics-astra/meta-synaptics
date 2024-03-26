@@ -1,0 +1,157 @@
+From 72df4684ee2b6edf181844ab3f59c16a3aee9398 Mon Sep 17 00:00:00 2001
+From: "Hsia-Jun(Randy) Li" <randy.li@synaptics.com>
+Date: Thu, 7 Dec 2023 15:20:04 +0800
+Subject: [PATCH 11/12] [WIP]: v4l2videodec: src_ch resume
+
+We could skip a buffer allocation if the buffer requirement is
+the same.
+
+Signed-off-by: Hsia-Jun(Randy) Li <randy.li@synaptics.com>
+---
+ .../sys/v4l2/gstv4l2bufferpool.c              | 51 +++++++++++++++++++
+ .../sys/v4l2/gstv4l2bufferpool.h              |  2 +
+ .../sys/v4l2/gstv4l2videodec.c                | 46 ++++++++++++++++-
+ 3 files changed, 98 insertions(+), 1 deletion(-)
+
+diff --git a/subprojects/gst-plugins-good/sys/v4l2/gstv4l2bufferpool.c b/subprojects/gst-plugins-good/sys/v4l2/gstv4l2bufferpool.c
+index 5017bc7f41..7d7bf9f6c3 100644
+--- a/subprojects/gst-plugins-good/sys/v4l2/gstv4l2bufferpool.c
++++ b/subprojects/gst-plugins-good/sys/v4l2/gstv4l2bufferpool.c
+@@ -717,6 +717,57 @@ streamon_failed:
+   }
+ }
+ 
++gboolean
++gst_v4l2_buffer_pool_resume (GstV4l2BufferPool * pool)
++{
++  GstV4l2Object *obj = pool->obj;
++
++  if (!pool->streaming)
++    return FALSE;
++
++  switch (obj->mode) {
++    case GST_V4L2_IO_MMAP:
++    case GST_V4L2_IO_USERPTR:
++    case GST_V4L2_IO_DMABUF:
++    case GST_V4L2_IO_DMABUF_IMPORT:
++      if (!V4L2_TYPE_IS_OUTPUT (pool->obj->type)) {
++        guint num_queued;
++        guint i, n;
++
++        GST_OBJECT_LOCK (pool);
++        n = pool->num_allocated;
++        num_queued = g_atomic_int_get (&pool->num_queued);
++        GST_OBJECT_UNLOCK (pool);
++        if (num_queued >= n)
++          return FALSE;
++
++        num_queued = 0;
++        g_signal_handler_block (pool->vallocator, pool->group_released_handler);
++        /* For captures, we need to enqueue buffers before decoder resuming,
++         * so the driver don't underflow immediately. As we have put then back
++         * into the base class queue, resurrect them, then releasing will queue
++         * them back. */
++        for (i = 0; i < n; i++)
++          if (!g_atomic_int_get(&pool->buffer_state[i])) {
++            GstBuffer *buffer = pool->buffers[i];
++            GstBufferPool *bpool = GST_BUFFER_POOL (pool);
++
++            gst_v4l2_buffer_pool_complete_release_buffer (bpool, buffer, FALSE);
++            num_queued++;
++          }
++
++        g_signal_handler_unblock (pool->vallocator, pool->group_released_handler);
++
++        GST_DEBUG_OBJECT (pool, "resurrect %d buffers", num_queued);
++      }
++      break;
++    default:
++      break;
++  }
++
++  return TRUE;
++}
++
+ /* Call with streamlock held, or when streaming threads are down */
+ static void
+ gst_v4l2_buffer_pool_streamoff (GstV4l2BufferPool * pool)
+diff --git a/subprojects/gst-plugins-good/sys/v4l2/gstv4l2bufferpool.h b/subprojects/gst-plugins-good/sys/v4l2/gstv4l2bufferpool.h
+index db8c554306..fce8f03c51 100644
+--- a/subprojects/gst-plugins-good/sys/v4l2/gstv4l2bufferpool.h
++++ b/subprojects/gst-plugins-good/sys/v4l2/gstv4l2bufferpool.h
+@@ -115,6 +115,8 @@ void                gst_v4l2_buffer_pool_set_other_pool (GstV4l2BufferPool * poo
+ void                gst_v4l2_buffer_pool_copy_at_threshold (GstV4l2BufferPool * pool,
+                                                             gboolean copy);
+ 
++gboolean            gst_v4l2_buffer_pool_resume (GstV4l2BufferPool * pool);
++
+ GstFlowReturn       gst_v4l2_buffer_pool_flush   (GstV4l2Object * v4l2object);
+ 
+ gboolean            gst_v4l2_buffer_pool_orphan  (GstV4l2Object * v4l2object);
+diff --git a/subprojects/gst-plugins-good/sys/v4l2/gstv4l2videodec.c b/subprojects/gst-plugins-good/sys/v4l2/gstv4l2videodec.c
+index 3fb01bd4fd..6dc675cc9f 100644
+--- a/subprojects/gst-plugins-good/sys/v4l2/gstv4l2videodec.c
++++ b/subprojects/gst-plugins-good/sys/v4l2/gstv4l2videodec.c
+@@ -742,6 +742,50 @@ gst_v4l2_video_dec_wait_for_src_ch (GstV4l2VideoDec * self)
+   return flowret;
+ }
+ 
++static void
++gst_v4l2_video_dec_src_ch_handle (GstV4l2VideoDec * self)
++{
++  GstVideoInfo info;
++  GstVideoCodecState *output_state;
++
++  if (!gst_v4l2_object_acquire_format (self->v4l2capture, &info)) {
++    gst_v4l2_object_stop (self->v4l2capture);
++    return;
++  }
++
++  output_state = gst_video_decoder_get_output_state (GST_VIDEO_DECODER(self));
++  if (!output_state) {
++    gst_v4l2_object_stop (self->v4l2capture);
++    return;
++  }
++
++  if (GST_VIDEO_INFO_FORMAT(&output_state->info) ==
++      GST_VIDEO_INFO_FORMAT(&info) &&
++      output_state->info.width == info.width &&
++      output_state->info.height == info.height)
++  {
++    GstV4l2BufferPool *pool;
++
++    gst_video_codec_state_unref (output_state);
++    GST_INFO_OBJECT (self, "same resolution, will restart the decoder");
++
++    pool = GST_V4L2_BUFFER_POOL (gst_v4l2_object_get_buffer_pool
++        (self->v4l2capture));
++    if (pool) {
++      gst_v4l2_buffer_pool_resume(pool);
++      gst_object_unref (pool);
++    } else {
++      return;
++    }
++
++    if (gst_v4l2_decoder_cmd (self->v4l2output, V4L2_DEC_CMD_START, 0))
++      return;
++  }
++  /* TODO: we didn't handle less buffer or memory requirement case */
++  gst_video_codec_state_unref (output_state);
++  gst_v4l2_object_stop (self->v4l2capture);
++}
++
+ static void
+ gst_v4l2_video_dec_loop (GstVideoDecoder * decoder)
+ {
+@@ -901,7 +945,7 @@ beach:
+     GST_VIDEO_DECODER_STREAM_LOCK (decoder);
+     if (self->draining) {
+       self->draining = FALSE;
+-      gst_v4l2_object_stop (self->v4l2capture);
++      gst_v4l2_video_dec_src_ch_handle(self);
+       GST_VIDEO_DECODER_STREAM_UNLOCK (decoder);
+       return;
+     }
+-- 
+2.17.1
+

@@ -1,0 +1,11 @@
+[Unit]
+Description=Weston Wayland Compositor
+RequiresMountsFor=/run
+
+[Service]
+EnvironmentFile=-/etc/default/weston
+StandardError=journal
+PermissionsStartOnly=true
+IgnoreSIGPIPE=no
+
+ExecStart=/usr/bin/weston-start -v -e -- $OPTARGS

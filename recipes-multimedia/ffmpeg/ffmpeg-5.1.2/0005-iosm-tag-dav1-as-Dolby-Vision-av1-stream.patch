@@ -1,0 +1,32 @@
+From 514d2feb8773599fb97e6bbb150dcbb9893ea3e3 Mon Sep 17 00:00:00 2001
+From: ychu <Yuanfeng.Chu@synaptics.com>
+Date: Tue, 21 Mar 2023 15:56:26 +0800
+Subject: [PATCH 5/7] iosm: tag "dav1" as Dolby Vision av1 stream
+
+JIRA: https://jira.synaptics.com/browse/VSSDK-24714
+
+Change-Id: I245cdce627928e11129748759c9af7e3d7c3be2c
+Reviewed-on: https://sc-debu-git.synaptics.com/gerrit/182288
+Reviewed-by: Neena Mathew <Neena.Mathew@synaptics.com>
+Reviewed-by: Yuanfeng Chu <Yuanfeng.Chu@synaptics.com>
+Reviewed-by: Zhe Tong <Zhe.Tong@synaptics.com>
+Reviewed-by: Yanyan Peng <Yanyan.Peng@synaptics.com>
+---
+ libavformat/isom_tags.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/libavformat/isom_tags.c b/libavformat/isom_tags.c
+index 4c8a75d027..b68620f0fc 100644
+--- a/libavformat/isom_tags.c
++++ b/libavformat/isom_tags.c
+@@ -150,6 +150,7 @@ const AVCodecTag ff_codec_movvideo_tags[] = {
+     { AV_CODEC_ID_VP8,  MKTAG('v', 'p', '0', '8') }, /* VP8 */
+     { AV_CODEC_ID_VP9,  MKTAG('v', 'p', '0', '9') }, /* VP9 */
+     { AV_CODEC_ID_AV1,  MKTAG('a', 'v', '0', '1') }, /* AV1 */
++    { AV_CODEC_ID_AV1,  MKTAG('d', 'a', 'v', '1') }, /* AV1-based Dolby Vision */
+ 
+     { AV_CODEC_ID_MPEG1VIDEO, MKTAG('m', '1', 'v', ' ') },
+     { AV_CODEC_ID_MPEG1VIDEO, MKTAG('m', '1', 'v', '1') }, /* Apple MPEG-1 Camcorder */
+-- 
+2.17.1
+

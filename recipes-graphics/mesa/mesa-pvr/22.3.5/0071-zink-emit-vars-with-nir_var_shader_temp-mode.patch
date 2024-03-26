@@ -1,0 +1,53 @@
+From dbdd2514d5a0a02408a806d46c90da3471cab174 Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Wed, 26 Oct 2022 15:38:03 +0200
+Subject: [PATCH 071/168] zink: emit vars with nir_var_shader_temp mode
+
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/19117>
+---
+ .../drivers/zink/nir_to_spirv/nir_to_spirv.c  | 22 +++++++++++++++++++
+ 1 file changed, 22 insertions(+)
+
+diff --git a/src/gallium/drivers/zink/nir_to_spirv/nir_to_spirv.c b/src/gallium/drivers/zink/nir_to_spirv/nir_to_spirv.c
+index 5166eb92aae..c9a496509b8 100644
+--- a/src/gallium/drivers/zink/nir_to_spirv/nir_to_spirv.c
++++ b/src/gallium/drivers/zink/nir_to_spirv/nir_to_spirv.c
+@@ -779,6 +779,25 @@ emit_output(struct ntv_context *ctx, struct nir_variable *var)
+    ctx->entry_ifaces[ctx->num_entry_ifaces++] = var_id;
+ }
+ 
++static void
++emit_shader_temp(struct ntv_context *ctx, struct nir_variable *var)
++{
++   SpvId var_type = get_glsl_type(ctx, var->type);
++
++   SpvId pointer_type = spirv_builder_type_pointer(&ctx->builder,
++                                                   SpvStorageClassPrivate,
++                                                   var_type);
++   SpvId var_id = spirv_builder_emit_var(&ctx->builder, pointer_type,
++                                         SpvStorageClassPrivate);
++   if (var->name)
++      spirv_builder_emit_name(&ctx->builder, var_id, var->name);
++
++   _mesa_hash_table_insert(ctx->vars, var, (void *)(intptr_t)var_id);
++
++   assert(ctx->num_entry_ifaces < ARRAY_SIZE(ctx->entry_ifaces));
++   ctx->entry_ifaces[ctx->num_entry_ifaces++] = var_id;
++}
++
+ static void
+ emit_temp(struct ntv_context *ctx, struct nir_variable *var)
+ {
+@@ -4741,6 +4760,9 @@ nir_to_spirv(struct nir_shader *s, const struct zink_shader_info *sinfo, uint32_
+       ctx.regs[reg->index] = var;
+    }
+ 
++   nir_foreach_variable_with_modes(var, s, nir_var_shader_temp)
++      emit_shader_temp(&ctx, var);
++
+    nir_foreach_function_temp_variable(var, entry)
+       emit_temp(&ctx, var);
+ 
+-- 
+2.17.1
+

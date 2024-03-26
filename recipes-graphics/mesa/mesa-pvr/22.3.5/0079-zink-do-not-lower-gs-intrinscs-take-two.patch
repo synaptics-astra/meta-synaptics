@@ -1,0 +1,28 @@
+From 9639375be33219e5efe3e5a325cb68d5f9c12d03 Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Tue, 6 Dec 2022 08:52:44 +0100
+Subject: [PATCH 079/168] zink: do not lower gs-intrinscs, take two
+
+Whoops, I missed a spot!
+
+Fixes: ad26d29adcc ("zink: do not lower gs-intrinsics")
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/20177>
+---
+ src/gallium/drivers/zink/zink_program.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/src/gallium/drivers/zink/zink_program.c b/src/gallium/drivers/zink/zink_program.c
+index 7812e81e30e..5524bf659c8 100644
+--- a/src/gallium/drivers/zink/zink_program.c
++++ b/src/gallium/drivers/zink/zink_program.c
+@@ -1892,7 +1892,6 @@ zink_set_line_stipple_keys(struct zink_context *ctx)
+                &screen->nir_options,
+                ctx->gfx_stages[prev_vertex_stage]->nir,
+                SHADER_PRIM_LINE_STRIP, 2);
+-            NIR_PASS_V(nir, nir_lower_gs_intrinsics, nir_lower_gs_intrinsics_per_stream);
+ 
+             struct zink_shader *shader = zink_shader_create(screen, nir, NULL);
+             ctx->gfx_stages[prev_vertex_stage]->non_fs.generated_gs = shader;
+-- 
+2.17.1
+

@@ -1,0 +1,78 @@
+From d694a30fc22f6e24978b2e66776584863cd16be5 Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Fri, 20 Jan 2023 16:02:34 +0000
+Subject: [PATCH 127/168] zink: add zink_cs_key
+
+Also, add shader key handling to compute programs.
+This will be used later on for the rb_image workaround.
+
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/20808>
+---
+ src/gallium/drivers/zink/zink_program.c     |  7 ++++---
+ src/gallium/drivers/zink/zink_shader_keys.h | 15 ++++++++++++++-
+ 2 files changed, 18 insertions(+), 4 deletions(-)
+
+diff --git a/src/gallium/drivers/zink/zink_program.c b/src/gallium/drivers/zink/zink_program.c
+index 5f9a0e6b6f4..2a3fad794e6 100644
+--- a/src/gallium/drivers/zink/zink_program.c
++++ b/src/gallium/drivers/zink/zink_program.c
+@@ -751,13 +751,14 @@ update_cs_shader_module(struct zink_context *ctx, struct zink_compute_program *c
+       }
+       zm->shader = mod;
+       zm->num_uniforms = inline_size;
+-      zm->key_size = 0;
++      zm->key_size = key->size;
++      memcpy(zm->key, key, key->size);
+       zm->has_nonseamless = !!nonseamless_size;
+       assert(nonseamless_size || inline_size);
+       if (nonseamless_size)
+-         memcpy(zm->key, &key->base.nonseamless_cube_mask, nonseamless_size);
++         memcpy(zm->key + zm->key_size, &key->base.nonseamless_cube_mask, nonseamless_size);
+       if (inline_size)
+-         memcpy(zm->key + nonseamless_size, key->base.inlined_uniform_values, inline_size * sizeof(uint32_t));
++         memcpy(zm->key + zm->key_size + nonseamless_size, key->base.inlined_uniform_values, inline_size * sizeof(uint32_t));
+       zm->hash = shader_module_hash(zm);
+       zm->default_variant = false;
+       if (inline_size)
+diff --git a/src/gallium/drivers/zink/zink_shader_keys.h b/src/gallium/drivers/zink/zink_shader_keys.h
+index 8e9565d8a06..a068fc018a0 100644
+--- a/src/gallium/drivers/zink/zink_shader_keys.h
++++ b/src/gallium/drivers/zink/zink_shader_keys.h
+@@ -88,6 +88,13 @@ struct zink_tcs_key {
+    uint8_t patch_vertices;
+ };
+ 
++/* when adding a new field, make sure
++ * ctx->compute_pipeline_state.key.size is set in zink_context_create.
++ */
++struct zink_cs_key {
++   uint32_t pad : 32;
++};
++
+ struct zink_shader_key_base {
+    uint32_t nonseamless_cube_mask;
+    uint32_t inlined_uniform_values[MAX_INLINABLE_UNIFORMS];
+@@ -107,6 +114,7 @@ struct zink_shader_key {
+       struct zink_gs_key gs;
+       struct zink_fs_key fs;
+       struct zink_fs_key_base fs_base;
++      struct zink_cs_key cs;
+    } key;
+    struct zink_shader_key_base base;
+    unsigned inline_uniforms:1;
+@@ -181,6 +189,11 @@ zink_tcs_key(const struct zink_shader_key *key)
+    return &key->key.tcs;
+ }
+ 
+-
++static inline const struct zink_cs_key *
++zink_cs_key(const struct zink_shader_key *key)
++{
++   assert(key);
++   return &key->key.cs;
++}
+ 
+ #endif
+-- 
+2.17.1
+

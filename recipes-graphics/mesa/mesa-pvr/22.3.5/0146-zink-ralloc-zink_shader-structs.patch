@@ -1,0 +1,45 @@
+From ff17c395cbbedf67dbfea68773bcbe920e4a0cd1 Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Mon, 6 Feb 2023 15:50:06 -0500
+Subject: [PATCH 146/168] zink: ralloc zink_shader structs
+
+Reviewed-by: Emma Anholt <emma@anholt.net>
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/21169>
+---
+ src/gallium/drivers/zink/zink_compiler.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/src/gallium/drivers/zink/zink_compiler.c b/src/gallium/drivers/zink/zink_compiler.c
+index 35d4988b44d..ae806f45293 100644
+--- a/src/gallium/drivers/zink/zink_compiler.c
++++ b/src/gallium/drivers/zink/zink_compiler.c
+@@ -4163,7 +4163,7 @@ struct zink_shader *
+ zink_shader_create(struct zink_screen *screen, struct nir_shader *nir,
+                    const struct pipe_stream_output_info *so_info)
+ {
+-   struct zink_shader *ret = CALLOC_STRUCT(zink_shader);
++   struct zink_shader *ret = rzalloc(NULL, struct zink_shader);
+    bool have_psiz = false;
+ 
+    ret->sinfo.have_vulkan_memory_model = screen->info.have_KHR_vulkan_memory_model;
+@@ -4464,7 +4464,7 @@ zink_shader_free(struct zink_screen *screen, struct zink_shader *shader)
+    _mesa_set_destroy(shader->programs, NULL);
+    ralloc_free(shader->nir);
+    ralloc_free(shader->spirv);
+-   FREE(shader);
++   ralloc_free(shader);
+ }
+ 
+ 
+@@ -4501,7 +4501,7 @@ void main()
+ struct zink_shader *
+ zink_shader_tcs_create(struct zink_screen *screen, struct zink_shader *vs, unsigned vertices_per_patch)
+ {
+-   struct zink_shader *ret = CALLOC_STRUCT(zink_shader);
++   struct zink_shader *ret = rzalloc(NULL, struct zink_shader);
+    ret->hash = _mesa_hash_pointer(ret);
+    ret->programs = _mesa_pointer_set_create(NULL);
+    simple_mtx_init(&ret->lock, mtx_plain);
+-- 
+2.17.1
+

@@ -1,0 +1,45 @@
+From 1f6ddf0544d1cadbb2c5a4c6cab55bc13fc9fb0c Mon Sep 17 00:00:00 2001
+From: Lukas Rusak <lorusak@gmail.com>
+Date: Thu, 7 May 2020 09:18:34 -0700
+Subject: [PATCH 6/7] avcodec/v4l2m2m: allow lower minimum buffer values
+
+There is no reason to enforce a high minimum. In the context
+of streaming only a few output buffers and capture buffers
+are even needed for continuous playback. This also helps
+alleviate memory pressure when decoding 4K media.
+
+Signed-off-by: Aman Karmani <aman@tmm1.net>
+---
+ libavcodec/v4l2_m2m.h     | 2 +-
+ libavcodec/v4l2_m2m_dec.c | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/libavcodec/v4l2_m2m.h b/libavcodec/v4l2_m2m.h
+index b67b216331..04d86d7b92 100644
+--- a/libavcodec/v4l2_m2m.h
++++ b/libavcodec/v4l2_m2m.h
+@@ -38,7 +38,7 @@
+ 
+ #define V4L_M2M_DEFAULT_OPTS \
+     { "num_output_buffers", "Number of buffers in the output context",\
+-        OFFSET(num_output_buffers), AV_OPT_TYPE_INT, { .i64 = 16 }, 6, INT_MAX, FLAGS }
++        OFFSET(num_output_buffers), AV_OPT_TYPE_INT, { .i64 = 16 }, 2, INT_MAX, FLAGS }
+ 
+ typedef struct V4L2m2mContext {
+     char devname[PATH_MAX];
+diff --git a/libavcodec/v4l2_m2m_dec.c b/libavcodec/v4l2_m2m_dec.c
+index 8a51dec3fa..c99710268d 100644
+--- a/libavcodec/v4l2_m2m_dec.c
++++ b/libavcodec/v4l2_m2m_dec.c
+@@ -226,7 +226,7 @@ static av_cold int v4l2_decode_close(AVCodecContext *avctx)
+ static const AVOption options[] = {
+     V4L_M2M_DEFAULT_OPTS,
+     { "num_capture_buffers", "Number of buffers in the capture context",
+-        OFFSET(num_capture_buffers), AV_OPT_TYPE_INT, {.i64 = 20}, 20, INT_MAX, FLAGS },
++        OFFSET(num_capture_buffers), AV_OPT_TYPE_INT, {.i64 = 20}, 2, INT_MAX, FLAGS },
+     { NULL},
+ };
+ 
+-- 
+2.17.1
+

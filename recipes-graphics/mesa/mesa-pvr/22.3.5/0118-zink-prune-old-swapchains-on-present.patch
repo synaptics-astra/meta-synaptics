@@ -1,0 +1,43 @@
+From c0fa2c260752363de3250a386cfce27296839546 Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Mon, 9 Jan 2023 13:51:16 -0500
+Subject: [PATCH 118/168] zink: prune old swapchains on present
+
+pruning old swapchains is challenging because there's no way to definitively
+know when to destroy them without VK_EXT_swapchain_maintenance1 which isn't
+supported yet
+
+initially, I handled it by only pruning on shutdown and whenever a new swapchain
+was created since those are both safe points, but this leads to scenarios where
+a dead swapchain can exist for the entire lifetime of an application
+if the swapinterval is changed
+
+to avoid such ballooning, check whether the current swapchain has ever presented
+on each present queue and then prune based on this
+
+fixes #7529
+
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/20588>
+---
+ src/gallium/drivers/zink/zink_kopper.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/src/gallium/drivers/zink/zink_kopper.c b/src/gallium/drivers/zink/zink_kopper.c
+index a67b7566af7..22a1e66b102 100644
+--- a/src/gallium/drivers/zink/zink_kopper.c
++++ b/src/gallium/drivers/zink/zink_kopper.c
+@@ -730,6 +730,11 @@ zink_kopper_present_queue(struct zink_screen *screen, struct zink_resource *res)
+    struct kopper_displaytarget *cdt = res->obj->dt;
+    assert(zink_kopper_acquired(res->obj->dt, res->obj->dt_idx));
+    assert(res->obj->present);
++
++   /* always try to prune if the current swapchain has seen presents */
++   if (cdt->swapchain->last_present != UINT32_MAX)
++      prune_old_swapchains(screen, cdt, false);
++
+    struct kopper_present_info *cpi = malloc(sizeof(struct kopper_present_info));
+    cpi->sem = res->obj->present;
+    cpi->res = res;
+-- 
+2.17.1
+

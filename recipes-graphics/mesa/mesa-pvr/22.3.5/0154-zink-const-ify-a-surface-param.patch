@@ -1,0 +1,26 @@
+From 4157166b9e83e748c97801c93c11bac6675d69f9 Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Mon, 13 Feb 2023 14:55:31 -0500
+Subject: [PATCH 154/168] zink: const-ify a surface param
+
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/21292>
+---
+ src/gallium/drivers/zink/zink_surface.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/gallium/drivers/zink/zink_surface.c b/src/gallium/drivers/zink/zink_surface.c
+index 73b3decb99a..5381e54b261 100644
+--- a/src/gallium/drivers/zink/zink_surface.c
++++ b/src/gallium/drivers/zink/zink_surface.c
+@@ -253,7 +253,7 @@ zink_get_surface(struct zink_context *ctx,
+ 
+ /* wrap a surface for use as a framebuffer attachment */
+ static struct pipe_surface *
+-wrap_surface(struct pipe_context *pctx, struct pipe_surface *psurf)
++wrap_surface(struct pipe_context *pctx, const struct pipe_surface *psurf)
+ {
+    struct zink_ctx_surface *csurf = CALLOC_STRUCT(zink_ctx_surface);
+    csurf->base = *psurf;
+-- 
+2.17.1
+

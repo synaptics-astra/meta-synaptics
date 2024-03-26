@@ -1,0 +1,13 @@
+diff --git a/adb/adb.c b/adb/adb.c
+index aaefd9b..49e64a3 100644
+--- a/adb/adb.c
++++ b/adb/adb.c
+@@ -1410,6 +1410,8 @@ int adb_main(int is_daemon, int server_port)
+     if (!value[0]) {
+         property_get("persist.adb.tcp.port", value, "");
+     }
++    if (!value[0])
++	property_get("ADBD_PORT", value, "");
+     if (sscanf(value, "%d", &port) == 1 && port > 0) {
+         printf("using port=%d\n", port);
+         // listen on TCP port specified by service.adb.tcp.port property

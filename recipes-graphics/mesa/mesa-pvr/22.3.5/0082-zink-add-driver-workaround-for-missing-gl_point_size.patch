@@ -1,0 +1,171 @@
+From 8b14d44cf23da63cc9610374cfb1dc6ef314ebf6 Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Tue, 29 Nov 2022 10:50:56 -0300
+Subject: [PATCH 082/168] zink: add driver-workaround for missing gl_point_size
+
+Add code to support gl_point lowering.
+
+In this commit the target of this lowering will be only the
+imagination proprietary driver.
+
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/20109>
+---
+ src/gallium/drivers/zink/zink_compiler.c    |  4 ++++
+ src/gallium/drivers/zink/zink_draw.cpp      |  5 +++--
+ src/gallium/drivers/zink/zink_program.c     |  6 ++++--
+ src/gallium/drivers/zink/zink_screen.c      | 16 +++++++++++++++-
+ src/gallium/drivers/zink/zink_shader_keys.h |  1 +
+ src/gallium/drivers/zink/zink_state.c       | 16 ++++++++++++++--
+ src/gallium/drivers/zink/zink_types.h       |  1 +
+ 7 files changed, 42 insertions(+), 7 deletions(-)
+
+diff --git a/src/gallium/drivers/zink/zink_compiler.c b/src/gallium/drivers/zink/zink_compiler.c
+index d78846b1858..babb69b68c2 100644
+--- a/src/gallium/drivers/zink/zink_compiler.c
++++ b/src/gallium/drivers/zink/zink_compiler.c
+@@ -2576,6 +2576,10 @@ zink_shader_compile(struct zink_screen *screen, struct zink_shader *zs, nir_shad
+                NIR_PASS_V(nir, nir_lower_var_copies);
+                need_optimize = true;
+             }
++            if (zink_gs_key(key)->lower_gl_point) {
++               NIR_PASS_V(nir, lower_gl_point_gs);
++               need_optimize = true;
++            }
+             break;
+ 
+          default:
+diff --git a/src/gallium/drivers/zink/zink_draw.cpp b/src/gallium/drivers/zink/zink_draw.cpp
+index 303ad32bd51..b8b5b9fbe67 100644
+--- a/src/gallium/drivers/zink/zink_draw.cpp
++++ b/src/gallium/drivers/zink/zink_draw.cpp
+@@ -801,8 +801,9 @@ zink_draw(struct pipe_context *pctx,
+                          offsetof(struct zink_gfx_push_constant, default_inner_level), sizeof(float) * 6,
+                          &ctx->tess_levels[0]);
+    }
+-   if (zink_get_fs_key(ctx)->lower_line_stipple) {
+-      assert(zink_get_gs_key(ctx)->lower_line_stipple);
++   if (zink_get_fs_key(ctx)->lower_line_stipple ||
++       zink_get_gs_key(ctx)->lower_gl_point) {
++      assert(zink_get_fs_key(ctx)->lower_line_stipple == zink_get_gs_key(ctx)->lower_line_stipple);
+ 
+       float viewport_scale[2] = {
+          ctx->vp_state.viewport_states[0].scale[0],
+diff --git a/src/gallium/drivers/zink/zink_program.c b/src/gallium/drivers/zink/zink_program.c
+index 3085177e9f1..9843ce13582 100644
+--- a/src/gallium/drivers/zink/zink_program.c
++++ b/src/gallium/drivers/zink/zink_program.c
+@@ -1879,7 +1879,7 @@ zink_set_primitive_emulation_keys(struct zink_context *ctx)
+       zink_set_gs_key(ctx)->lower_line_stipple = lower_line_stipple;
+    }
+ 
+-   if (lower_line_stipple) {
++   if (lower_line_stipple || zink_get_gs_key(ctx)->lower_gl_point) {
+       enum pipe_shader_type prev_vertex_stage =
+          ctx->gfx_stages[MESA_SHADER_TESS_EVAL] ?
+             MESA_SHADER_TESS_EVAL : MESA_SHADER_VERTEX;
+@@ -1891,7 +1891,9 @@ zink_set_primitive_emulation_keys(struct zink_context *ctx)
+             nir_shader *nir = nir_create_passthrough_gs(
+                &screen->nir_options,
+                ctx->gfx_stages[prev_vertex_stage]->nir,
+-               SHADER_PRIM_LINE_STRIP, 2);
++               lower_line_stipple ? SHADER_PRIM_LINE_STRIP :  SHADER_PRIM_POINTS,
++               lower_line_stipple ? 2 : 1);
++            NIR_PASS_V(nir, nir_lower_gs_intrinsics, nir_lower_gs_intrinsics_per_stream);
+ 
+             struct zink_shader *shader = zink_shader_create(screen, nir, NULL);
+             ctx->gfx_stages[prev_vertex_stage]->non_fs.generated_gs = shader;
+diff --git a/src/gallium/drivers/zink/zink_screen.c b/src/gallium/drivers/zink/zink_screen.c
+index e2f65c7a348..a200244a07d 100644
+--- a/src/gallium/drivers/zink/zink_screen.c
++++ b/src/gallium/drivers/zink/zink_screen.c
+@@ -2355,6 +2355,19 @@ init_driver_workarounds(struct zink_screen *screen)
+       screen->driver_workarounds.no_linestipple = true;
+    }
+ 
++   /* This is a workarround for the lack of
++    * gl_PointSize + glPolygonMode(..., GL_LINE), in the imagination
++    * proprietary driver.
++    */
++   switch (screen->info.driver_props.driverID) {
++   case VK_DRIVER_ID_IMAGINATION_PROPRIETARY:
++      screen->driver_workarounds.no_hw_gl_point = true;
++      break;
++   default:
++      screen->driver_workarounds.no_hw_gl_point = false;
++      break;
++   }
++
+    if (screen->info.driver_props.driverID == VK_DRIVER_ID_AMD_OPEN_SOURCE || 
+        screen->info.driver_props.driverID == VK_DRIVER_ID_AMD_PROPRIETARY || 
+        screen->info.driver_props.driverID == VK_DRIVER_ID_NVIDIA_PROPRIETARY || 
+@@ -2725,7 +2738,8 @@ zink_internal_create_screen(const struct pipe_screen_config *config)
+    screen->optimal_keys = !screen->need_decompose_attrs &&
+                           screen->info.have_EXT_non_seamless_cube_map &&
+                           !screen->driconf.inline_uniforms &&
+-                          !screen->driver_workarounds.no_linestipple;
++                          !screen->driver_workarounds.no_linestipple &&
++                          !screen->driver_workarounds.no_hw_gl_point;
+    if (!screen->optimal_keys)
+       screen->info.have_EXT_graphics_pipeline_library = false;
+ 
+diff --git a/src/gallium/drivers/zink/zink_shader_keys.h b/src/gallium/drivers/zink/zink_shader_keys.h
+index 013892bff2d..afdf10a1177 100644
+--- a/src/gallium/drivers/zink/zink_shader_keys.h
++++ b/src/gallium/drivers/zink/zink_shader_keys.h
+@@ -60,6 +60,7 @@ struct zink_gs_key {
+    struct zink_vs_key_base base;
+    uint8_t pad;
+    bool lower_line_stipple : 1;
++   bool lower_gl_point : 1;
+    // not hashed
+    unsigned size;
+ };
+diff --git a/src/gallium/drivers/zink/zink_state.c b/src/gallium/drivers/zink/zink_state.c
+index eba2cc8dfb8..92b0b0ed483 100644
+--- a/src/gallium/drivers/zink/zink_state.c
++++ b/src/gallium/drivers/zink/zink_state.c
+@@ -578,8 +578,15 @@ zink_create_rasterizer_state(struct pipe_context *pctx,
+    assert(rs_state->fill_front <= PIPE_POLYGON_MODE_POINT);
+    if (rs_state->fill_back != rs_state->fill_front)
+       debug_printf("BUG: vulkan doesn't support different front and back fill modes\n");
+-   state->hw_state.polygon_mode = rs_state->fill_front; // same values
+-   state->cull_mode = rs_state->cull_face; // same bits
++
++   if (rs_state->fill_front == PIPE_POLYGON_MODE_POINT &&
++       screen->driver_workarounds.no_hw_gl_point) {
++      state->hw_state.polygon_mode = VK_POLYGON_MODE_FILL;
++      state->cull_mode = VK_CULL_MODE_NONE;
++   } else {
++      state->hw_state.polygon_mode = rs_state->fill_front; // same values
++      state->cull_mode = rs_state->cull_face; // same bits
++   }
+ 
+    state->front_face = rs_state->front_ccw ?
+                        VK_FRONT_FACE_COUNTER_CLOCKWISE :
+@@ -651,6 +658,11 @@ zink_bind_rasterizer_state(struct pipe_context *pctx, void *cso)
+       if (fabs(ctx->rast_state->base.line_width - line_width) > FLT_EPSILON)
+          ctx->line_width_changed = true;
+ 
++      bool lower_gl_point = screen->driver_workarounds.no_hw_gl_point;
++      lower_gl_point &= ctx->rast_state->base.fill_front == PIPE_POLYGON_MODE_POINT;
++      if (zink_get_gs_key(ctx)->lower_gl_point != lower_gl_point)
++         zink_set_gs_key(ctx)->lower_gl_point = lower_gl_point;
++
+       if (ctx->gfx_pipeline_state.dyn_state1.front_face != ctx->rast_state->front_face) {
+          ctx->gfx_pipeline_state.dyn_state1.front_face = ctx->rast_state->front_face;
+          ctx->gfx_pipeline_state.dirty |= !zink_screen(pctx->screen)->info.have_EXT_extended_dynamic_state;
+diff --git a/src/gallium/drivers/zink/zink_types.h b/src/gallium/drivers/zink/zink_types.h
+index 76dd9bd4990..a62b71f352b 100644
+--- a/src/gallium/drivers/zink/zink_types.h
++++ b/src/gallium/drivers/zink/zink_types.h
+@@ -1282,6 +1282,7 @@ struct zink_screen {
+       bool needs_sanitised_layer;
+       bool track_renderpasses;
+       bool no_linestipple;
++      bool no_hw_gl_point;
+       unsigned z16_unscaled_bias;
+       unsigned z24_unscaled_bias;
+    } driver_workarounds;
+-- 
+2.17.1
+

@@ -1,0 +1,58 @@
+From 7addbf0fd40e778b3fce996196768b3435482b6f Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Thu, 17 Nov 2022 12:15:54 +0100
+Subject: [PATCH 073/168] zink: process non-optimal-key passes first
+
+Right now, it's only the vertex-shader that needs special handling for
+non-optimal keys. That makes it possible to use fallthrough to always
+end up in the last-vertex-stage conditional.
+
+But we're about to add special handling for the geometry stage as well,
+so let's prepare by splitting the switch-statement in two; one that only
+happens for non-optimal keys, and does all the needed processing there,
+and one that deals with the rest.
+
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/19117>
+---
+ src/gallium/drivers/zink/zink_compiler.c | 16 ++++++++++++----
+ 1 file changed, 12 insertions(+), 4 deletions(-)
+
+diff --git a/src/gallium/drivers/zink/zink_compiler.c b/src/gallium/drivers/zink/zink_compiler.c
+index 9661c4564b9..3dc9d19e740 100644
+--- a/src/gallium/drivers/zink/zink_compiler.c
++++ b/src/gallium/drivers/zink/zink_compiler.c
+@@ -2435,9 +2435,10 @@ zink_shader_compile(struct zink_screen *screen, struct zink_shader *zs, nir_shad
+       }
+ 
+       /* TODO: use a separate mem ctx here for ralloc */
+-      switch (zs->nir->info.stage) {
+-      case MESA_SHADER_VERTEX: {
+-         if (!screen->optimal_keys) {
++
++      if (!screen->optimal_keys) {
++         switch (zs->nir->info.stage) {
++         case MESA_SHADER_VERTEX: {
+             uint32_t decomposed_attrs = 0, decomposed_attrs_without_w = 0;
+             const struct zink_vs_key *vs_key = zink_vs_key(key);
+             switch (vs_key->size) {
+@@ -2457,9 +2458,16 @@ zink_shader_compile(struct zink_screen *screen, struct zink_shader *zs, nir_shad
+             }
+             if (decomposed_attrs || decomposed_attrs_without_w)
+                NIR_PASS_V(nir, decompose_attribs, decomposed_attrs, decomposed_attrs_without_w);
++            break;
++         }
++
++         default:
++            break;
+          }
+-         FALLTHROUGH;
+       }
++
++      switch (zs->nir->info.stage) {
++      case MESA_SHADER_VERTEX:
+       case MESA_SHADER_TESS_EVAL:
+       case MESA_SHADER_GEOMETRY:
+          if (zink_vs_key_base(key)->last_vertex_stage) {
+-- 
+2.17.1
+

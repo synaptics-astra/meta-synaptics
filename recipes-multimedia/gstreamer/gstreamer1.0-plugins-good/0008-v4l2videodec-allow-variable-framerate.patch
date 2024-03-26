@@ -1,0 +1,69 @@
+From 78282260f46f3b078827daf61fa75615e9b0a2b0 Mon Sep 17 00:00:00 2001
+From: "Hsia-Jun(Randy) Li" <randy.li@synaptics.com>
+Date: Wed, 7 Dec 2022 18:25:32 +0800
+Subject: [PATCH 08/12] v4l2videodec: allow variable framerate
+
+Most of hardware decoders do not care about framerate.
+Adding a fixed value here to prevent negotiate failing.
+---
+ .../sys/v4l2/gstv4l2videodec.c                | 30 +++++++++++++++++++
+ 1 file changed, 30 insertions(+)
+
+diff --git a/subprojects/gst-plugins-good/sys/v4l2/gstv4l2videodec.c b/subprojects/gst-plugins-good/sys/v4l2/gstv4l2videodec.c
+index c7f39ddee2..b99e67e50e 100644
+--- a/subprojects/gst-plugins-good/sys/v4l2/gstv4l2videodec.c
++++ b/subprojects/gst-plugins-good/sys/v4l2/gstv4l2videodec.c
+@@ -115,6 +115,33 @@ gst_v4l2_video_dec_get_property (GObject * object,
+   }
+ }
+ 
++static gboolean
++gst_v4l2_video_dec_fix_caps (GstCaps *caps)
++{
++  GstStructure *s;
++  GValue rates = { 0, };
++  GValue rate = { 0, };
++  const GValue *framerate;
++
++  if (gst_caps_is_empty (caps))
++      return FALSE;
++
++  s = gst_caps_get_structure (caps, 0);
++  framerate = gst_structure_get_value (s, "framerate");
++
++  if (G_VALUE_TYPE(framerate) == GST_TYPE_FRACTION_RANGE) {
++      g_value_init (&rates, GST_TYPE_LIST);
++      g_value_init (&rate, GST_TYPE_FRACTION);
++
++      gst_value_set_fraction (&rate, 0, 1);
++      gst_value_list_append_value (&rates, &rate);
++      gst_value_list_append_value (&rates, framerate);
++      gst_structure_take_value (s, "framerate", &rates);
++  }
++
++  return TRUE;
++}
++
+ static gboolean
+ gst_v4l2_video_dec_open (GstVideoDecoder * decoder)
+ {
+@@ -134,6 +161,7 @@ gst_v4l2_video_dec_open (GstVideoDecoder * decoder)
+   self->probed_sinkcaps = gst_v4l2_object_probe_caps (self->v4l2output,
+       codec_caps);
+   gst_caps_unref (codec_caps);
++  gst_v4l2_video_dec_fix_caps (self->probed_sinkcaps);
+ 
+   if (gst_caps_is_empty (self->probed_sinkcaps))
+     goto no_encoded_format;
+@@ -432,6 +460,8 @@ gst_v4l2_video_dec_negotiate (GstVideoDecoder * decoder)
+   gst_caps_replace (&self->probed_srccaps, NULL);
+   self->probed_srccaps = gst_v4l2_object_probe_caps (self->v4l2capture,
+       gst_v4l2_object_get_raw_caps ());
++  gst_v4l2_video_dec_fix_caps (self->probed_srccaps);
++
+   /* Create caps from the acquired format, remove the format field */
+   acquired_caps = gst_video_info_to_caps (&info);
+   GST_DEBUG_OBJECT (self, "Acquired caps: %" GST_PTR_FORMAT, acquired_caps);
+-- 
+2.17.1
+

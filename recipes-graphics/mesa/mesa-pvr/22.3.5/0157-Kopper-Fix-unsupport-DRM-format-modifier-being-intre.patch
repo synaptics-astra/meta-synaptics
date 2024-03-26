@@ -1,0 +1,28 @@
+From 10854f30d380f8cd500893e9eac37c0ac3c48819 Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Fri, 22 Jul 2022 13:00:14 +0100
+Subject: [PATCH 157/168] Kopper: Fix unsupport DRM format modifier being
+ intrepreted as use internal
+
+If X server does not have DRM format modifiers enables, it returns invalid format.
+This being returned for glXBindTexImageEXT means to use native (linear) format.
+---
+ src/gallium/frontends/dri/kopper.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/gallium/frontends/dri/kopper.c b/src/gallium/frontends/dri/kopper.c
+index 5268f1fb9fb..54273647cc1 100644
+--- a/src/gallium/frontends/dri/kopper.c
++++ b/src/gallium/frontends/dri/kopper.c
+@@ -324,7 +324,7 @@ dri3_create_image_from_buffers(xcb_connection_t *c,
+                                         bp_reply->width,
+                                         bp_reply->height,
+                                         image_format_to_fourcc(format),
+-                                        bp_reply->modifier,
++                                        bp_reply->modifier == DRM_FORMAT_MOD_INVALID ? DRM_FORMAT_MOD_LINEAR : bp_reply->modifier,
+                                         fds, bp_reply->nfd,
+                                         strides, offsets,
+                                         0, 0, 0, 0, /* UNDEFINED */
+-- 
+2.17.1
+

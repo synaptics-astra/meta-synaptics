@@ -1,0 +1,83 @@
+From 333aa424e9c14ac1c3fcea7a25b045be6fe5fc3e Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Thu, 5 Jan 2023 13:32:25 -0500
+Subject: [PATCH 132/168] zink: flag old-style shadow tex mask for fragment
+ shaders
+
+this will be useful for handling depth texturing modes
+
+only 32 are tracked now for performance reasons
+
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/20598>
+---
+ src/gallium/drivers/zink/zink_compiler.c | 19 ++++++++++++++++---
+ src/gallium/drivers/zink/zink_types.h    |  1 +
+ 2 files changed, 17 insertions(+), 3 deletions(-)
+
+diff --git a/src/gallium/drivers/zink/zink_compiler.c b/src/gallium/drivers/zink/zink_compiler.c
+index 9ff54faa379..44fa8789a8b 100644
+--- a/src/gallium/drivers/zink/zink_compiler.c
++++ b/src/gallium/drivers/zink/zink_compiler.c
+@@ -3753,6 +3753,15 @@ lower_sparse(nir_shader *shader)
+    return nir_shader_instructions_pass(shader, lower_sparse_instr, nir_metadata_dominance, NULL);
+ }
+ 
++static void
++flag_shadow_tex(nir_variable *var, struct zink_shader *zs)
++{
++   /* unconvert from zink_binding() */
++   uint32_t sampler_id = var->data.binding - (PIPE_MAX_SAMPLERS * MESA_SHADER_FRAGMENT);
++   assert(sampler_id < 32); //bitfield size for tracking
++   zs->fs.legacy_shadow_mask |= BITFIELD_BIT(sampler_id);
++}
++
+ static bool
+ match_tex_dests_instr(nir_builder *b, nir_instr *in, void *data)
+ {
+@@ -3793,6 +3802,10 @@ match_tex_dests_instr(nir_builder *b, nir_instr *in, void *data)
+       assert(!tex->is_new_style_shadow);
+       tex->dest.ssa.num_components = 1;
+       tex->is_new_style_shadow = true;
++      if (b->shader->info.stage == MESA_SHADER_FRAGMENT)
++         flag_shadow_tex(var, data);
++      else
++         mesa_loge("unhandled old-style shadow sampler in non-fragment stage!");
+    }
+    if (bit_size != dest_size) {
+       tex->dest.ssa.bit_size = bit_size;
+@@ -3820,9 +3833,9 @@ match_tex_dests_instr(nir_builder *b, nir_instr *in, void *data)
+ }
+ 
+ static bool
+-match_tex_dests(nir_shader *shader)
++match_tex_dests(nir_shader *shader, struct zink_shader *zs)
+ {
+-   return nir_shader_instructions_pass(shader, match_tex_dests_instr, nir_metadata_dominance, NULL);
++   return nir_shader_instructions_pass(shader, match_tex_dests_instr, nir_metadata_dominance, zs);
+ }
+ 
+ static bool
+@@ -4276,7 +4289,7 @@ zink_shader_create(struct zink_screen *screen, struct nir_shader *nir,
+    if (!screen->info.feats.features.shaderInt64 || !screen->info.feats.features.shaderFloat64)
+       NIR_PASS_V(nir, lower_64bit_vars, screen->info.feats.features.shaderInt64);
+    if (nir->info.stage != MESA_SHADER_KERNEL)
+-      NIR_PASS_V(nir, match_tex_dests);
++      NIR_PASS_V(nir, match_tex_dests, ret);
+ 
+    ret->nir = nir;
+    nir_foreach_shader_out_variable(var, nir)
+diff --git a/src/gallium/drivers/zink/zink_types.h b/src/gallium/drivers/zink/zink_types.h
+index ce247ba3042..c984eed9daa 100644
+--- a/src/gallium/drivers/zink/zink_types.h
++++ b/src/gallium/drivers/zink/zink_types.h
+@@ -689,6 +689,7 @@ struct zink_shader {
+       } non_fs;
+ 
+       struct {
++         uint32_t legacy_shadow_mask; //is_new_style_shadow is false for these
+          nir_variable *fbfetch; //for fs output
+       } fs;
+    };
+-- 
+2.17.1
+

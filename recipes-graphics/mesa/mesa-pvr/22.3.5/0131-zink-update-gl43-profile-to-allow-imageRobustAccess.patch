@@ -1,0 +1,96 @@
+From 5f4828f84c3344eaaac50fd4d5c6a67af978c36f Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Fri, 20 Jan 2023 17:31:53 +0000
+Subject: [PATCH 131/168] zink: update gl43 profile to allow imageRobustAccess
+
+Now that zink can use imageRobustAccess and handle txf with invalid LODs,
+update the profile to require either VK_EXT_image_robustness or VK_EXT_robustness2.
+
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/20808>
+---
+ .../drivers/zink/VP_ZINK_requirements.json    | 34 ++++++++++++++++++-
+ 1 file changed, 33 insertions(+), 1 deletion(-)
+
+diff --git a/src/gallium/drivers/zink/VP_ZINK_requirements.json b/src/gallium/drivers/zink/VP_ZINK_requirements.json
+index 262a690993d..8bd5eb85d40 100644
+--- a/src/gallium/drivers/zink/VP_ZINK_requirements.json
++++ b/src/gallium/drivers/zink/VP_ZINK_requirements.json
+@@ -189,6 +189,33 @@
+                 }
+             }
+         },
++        "gl43_baseline_rb2": {
++            "extensions": {
++                "VK_EXT_robustness2": 1
++            },
++            "features": {
++                "VkPhysicalDeviceRobustness2FeaturesEXT": {
++                    "robustImageAccess2": true
++                }
++            }
++        },
++        "gl43_baseline_rb_image_vk13": {
++            "features": {
++                "VkPhysicalDeviceVulkan13Features": {
++                    "robustImageAccess": true
++                }
++            }
++        },
++        "gl43_baseline_rb_image_ext": {
++            "extensions": {
++                "VK_EXT_image_robustness": 1
++            },
++            "features": {
++                "VkPhysicalDeviceImageRobustnessFeaturesEXT": {
++                    "robustImageAccess": true
++                }
++            }
++        },
+         "gl43_baseline": {
+             "features": {
+                 "VkPhysicalDeviceFeatures": {
+@@ -675,7 +702,8 @@
+                 "gl41_baseline",
+                 "gl42_baseline",
+                 [ "gl42_baseline_vk10", "gl42_baseline_vk12" ],
+-                "gl43_baseline"
++                "gl43_baseline",
++                [ "gl43_baseline_rb2", "gl43_baseline_rb_image_vk13", "gl43_baseline_rb_image_ext" ]
+             ]
+         },
+         "VP_ZINK_gl44_baseline": {
+@@ -696,6 +724,7 @@
+                 "gl42_baseline",
+                 [ "gl42_baseline_vk10", "gl42_baseline_vk12" ],
+                 "gl43_baseline",
++                [ "gl43_baseline_rb2", "gl43_baseline_rb_image_vk13", "gl43_baseline_rb_image_ext" ],
+                 "gl44_baseline"
+             ]
+         },
+@@ -717,6 +746,7 @@
+                 "gl42_baseline",
+                 [ "gl42_baseline_vk10", "gl42_baseline_vk12" ],
+                 "gl43_baseline",
++                [ "gl43_baseline_rb2", "gl43_baseline_rb_image_vk13", "gl43_baseline_rb_image_ext" ],
+                 "gl44_baseline",
+                 "gl45_baseline"
+             ]
+@@ -739,6 +769,7 @@
+                 "gl42_baseline",
+                 [ "gl42_baseline_vk10", "gl42_baseline_vk12" ],
+                 "gl43_baseline",
++                [ "gl43_baseline_rb2", "gl43_baseline_rb_image_vk13", "gl43_baseline_rb_image_ext" ],
+                 "gl44_baseline",
+                 "gl45_baseline",
+                 "gl46_baseline"
+@@ -762,6 +793,7 @@
+                 "gl42_baseline",
+                 [ "gl42_baseline_vk10", "gl42_baseline_vk12" ],
+                 "gl43_baseline",
++                [ "gl43_baseline_rb2", "gl43_baseline_rb_image_vk13", "gl43_baseline_rb_image_ext" ],
+                 "gl44_baseline",
+                 "gl45_baseline",
+                 "gl46_baseline",
+-- 
+2.17.1
+

@@ -1,0 +1,46 @@
+From 5187ee2ffa810bf07e197a1e49cc323150fe9d56 Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Tue, 24 Jan 2023 15:52:58 -0500
+Subject: [PATCH 143/168] zink: reorder commands more aggressively
+
+by starting resources in the unordered state in a given batch, they
+gain more opportunities to be promoted to the barrier cmdbuf and avoid
+breaking renderpasses
+
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/20890>
+---
+ src/gallium/drivers/zink/zink_batch.c    | 4 ++--
+ src/gallium/drivers/zink/zink_resource.c | 2 ++
+ 2 files changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/src/gallium/drivers/zink/zink_batch.c b/src/gallium/drivers/zink/zink_batch.c
+index b1ac83b1bd8..dd0d8e7ec3b 100644
+--- a/src/gallium/drivers/zink/zink_batch.c
++++ b/src/gallium/drivers/zink/zink_batch.c
+@@ -29,8 +29,8 @@ reset_obj(struct zink_screen *screen, struct zink_batch_state *bs, struct zink_r
+    /* if no batch usage exists after removing the usage from 'bs', this resource is considered fully idle */
+    if (!zink_resource_object_usage_unset(obj, bs)) {
+       /* the resource is idle, so reset all access/reordering info */
+-      obj->unordered_read = false;
+-      obj->unordered_write = false;
++      obj->unordered_read = true;
++      obj->unordered_write = true;
+       obj->access = 0;
+       obj->access_stage = 0;
+       /* also prune dead view objects */
+diff --git a/src/gallium/drivers/zink/zink_resource.c b/src/gallium/drivers/zink/zink_resource.c
+index 0b43f89d44e..da97fe94c29 100644
+--- a/src/gallium/drivers/zink/zink_resource.c
++++ b/src/gallium/drivers/zink/zink_resource.c
+@@ -590,6 +590,8 @@ resource_object_create(struct zink_screen *screen, const struct pipe_resource *t
+       return NULL;
+    simple_mtx_init(&obj->view_lock, mtx_plain);
+    util_dynarray_init(&obj->views, NULL);
++   obj->unordered_read = true;
++   obj->unordered_write = true;
+    obj->last_dt_idx = obj->dt_idx = UINT32_MAX; //TODO: unionize
+ 
+    VkMemoryRequirements reqs = {0};
+-- 
+2.17.1
+

@@ -1,0 +1,34 @@
+From 8390d311042bb9b54e6d39193a00276f34a6ad8a Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Wed, 8 Nov 2017 15:26:25 +0000
+Subject: [PATCH 015/168] egl/wayland: flush the drawable before blitting
+
+Flush the drawable before blitting in the "is_different_gpu" case when
+swapping buffers, and pass the flush flag to the blitImage call. The
+change brings the code into line with the way the DRI3 GLX code works.
+
+For the PowerVR driver, the drawable parameters that will be used in
+the flush have been obtained previously, including any native fence
+associated with the blit source. The blit will result in a new native
+fence for the source, and make the one in the drawable parameters
+invalid.
+---
+ src/egl/drivers/dri2/platform_wayland.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/egl/drivers/dri2/platform_wayland.c b/src/egl/drivers/dri2/platform_wayland.c
+index 73a443b4b40..8f1c5101441 100644
+--- a/src/egl/drivers/dri2/platform_wayland.c
++++ b/src/egl/drivers/dri2/platform_wayland.c
+@@ -1607,7 +1607,7 @@ dri2_wl_swap_buffers_with_damage(_EGLDisplay *disp,
+                                  0, 0, dri2_surf->base.Width,
+                                  dri2_surf->base.Height,
+                                  0, 0, dri2_surf->base.Width,
+-                                 dri2_surf->base.Height, 0);
++                                 dri2_surf->base.Height, __BLIT_FLAG_FLUSH);
+    }
+ 
+    wl_surface_commit(dri2_surf->wl_surface_wrapper);
+-- 
+2.17.1
+

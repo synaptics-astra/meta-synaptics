@@ -1,0 +1,41 @@
+From 48f54320eed82fe51f95294c4c710b010fd176a6 Mon Sep 17 00:00:00 2001
+From: Chao Guo <chao.guo@nxp.com>
+Date: Mon, 18 Dec 2023 11:03:57 +0900
+Subject: [PATCH 03/12] v4l2object: clear old fds in poll when closing
+ v4l2object
+
+When reopening a v4l2 device, the v4l2object->poll will include some old fds,
+which was assigned to this device before. If the pipeline opens multiple v4l2
+devices, the old fd may been assigned to other v4l2 devices when reopening
+devices.
+
+This will cause the timing of the pipeline become confusing when polling devices,
+leading functional abnormalities.
+
+Therefore, when closing v4l2object, remove the old fds in poll to ensure that the
+pipeline timing is normal.
+
+Signed-off-by: Chao Guo <chao.guo@nxp.com>
+Part-of: <https://gitlab.freedesktop.org/gstreamer/gstreamer/-/merge_requests/5840>
+---
+ subprojects/gst-plugins-good/sys/v4l2/gstv4l2object.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/subprojects/gst-plugins-good/sys/v4l2/gstv4l2object.c b/subprojects/gst-plugins-good/sys/v4l2/gstv4l2object.c
+index 7c787f11fc..9736cd5bf5 100644
+--- a/subprojects/gst-plugins-good/sys/v4l2/gstv4l2object.c
++++ b/subprojects/gst-plugins-good/sys/v4l2/gstv4l2object.c
+@@ -969,6 +969,10 @@ gst_v4l2_object_close (GstV4l2Object * v4l2object)
+     v4l2object->channel = NULL;
+   }
+ 
++  /* remove old fd from poll */
++  if (v4l2object->poll)
++    gst_poll_remove_fd (v4l2object->poll, &v4l2object->pollfd);
++
+   return TRUE;
+ }
+ 
+-- 
+2.17.1
+

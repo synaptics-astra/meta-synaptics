@@ -1,0 +1,30 @@
+From dc1ce8e5fadea1a4e26412c974b3a1f6fa8e2ddc Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Mon, 13 Feb 2023 14:38:26 +0000
+Subject: [PATCH 149/168] zink: free resource objects' views array during
+ destruction
+
+since the array is not ralloc managed, it has be explicitly freed.
+
+cc: mesa-stable
+
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/21285>
+---
+ src/gallium/drivers/zink/zink_resource.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/src/gallium/drivers/zink/zink_resource.c b/src/gallium/drivers/zink/zink_resource.c
+index 65e404d532b..9b544270885 100644
+--- a/src/gallium/drivers/zink/zink_resource.c
++++ b/src/gallium/drivers/zink/zink_resource.c
+@@ -105,6 +105,7 @@ zink_destroy_resource_object(struct zink_screen *screen, struct zink_resource_ob
+       while (util_dynarray_contains(&obj->views, VkImageView))
+          VKSCR(DestroyImageView)(screen->dev, util_dynarray_pop(&obj->views, VkImageView), NULL);
+    }
++   util_dynarray_fini(&obj->views);
+    if (obj->is_buffer) {
+       VKSCR(DestroyBuffer)(screen->dev, obj->buffer, NULL);
+       VKSCR(DestroyBuffer)(screen->dev, obj->storage_buffer, NULL);
+-- 
+2.17.1
+

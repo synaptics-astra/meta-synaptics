@@ -1,0 +1,35 @@
+From 94c3e87ac76f0ea4b84591a45c4853fea8ea93cf Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Fri, 2 Feb 2018 16:59:52 +0000
+Subject: [PATCH 024/168] dri: add missing __DRI_IMAGE_COMPONENTS define for
+ EGL_TEXTURE_EXTERNAL_WL
+
+The __DRI_IMAGE_COMPONENTS defines have been re-ordered, to make it
+less likely that new defines will be added with the same values as
+existing ones.
+---
+ include/GL/internal/dri_interface.h | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/include/GL/internal/dri_interface.h b/include/GL/internal/dri_interface.h
+index a62ccc1b41f..4b1b691e217 100644
+--- a/include/GL/internal/dri_interface.h
++++ b/include/GL/internal/dri_interface.h
+@@ -1331,11 +1331,12 @@ struct __DRIdri2ExtensionRec {
+ #define __DRI_IMAGE_COMPONENTS_Y_U_V	0x3003
+ #define __DRI_IMAGE_COMPONENTS_Y_UV	0x3004
+ #define __DRI_IMAGE_COMPONENTS_Y_XUXV	0x3005
++#define __DRI_IMAGE_COMPONENTS_R	0x3006
++#define __DRI_IMAGE_COMPONENTS_RG	0x3007
+ #define __DRI_IMAGE_COMPONENTS_Y_UXVX	0x3008
+ #define __DRI_IMAGE_COMPONENTS_AYUV	0x3009
+ #define __DRI_IMAGE_COMPONENTS_XYUV	0x300A
+-#define __DRI_IMAGE_COMPONENTS_R	0x3006
+-#define __DRI_IMAGE_COMPONENTS_RG	0x3007
++#define __DRI_IMAGE_COMPONENTS_EXTERNAL 0x300B
+ 
+ 
+ /**
+-- 
+2.17.1
+

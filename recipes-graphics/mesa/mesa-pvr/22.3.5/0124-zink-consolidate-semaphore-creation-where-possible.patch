@@ -1,0 +1,105 @@
+From 2143a73fe42dd9e3c63e49e04b760d76ee441e04 Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Thu, 12 Jan 2023 14:49:26 -0500
+Subject: [PATCH 124/168] zink: consolidate semaphore creation where possible
+
+all cacheable semaphores should now be using the cache
+
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/20681>
+---
+ src/gallium/drivers/zink/zink_bo.c     | 19 +++----------------
+ src/gallium/drivers/zink/zink_kopper.c | 20 +++++---------------
+ 2 files changed, 8 insertions(+), 31 deletions(-)
+
+diff --git a/src/gallium/drivers/zink/zink_bo.c b/src/gallium/drivers/zink/zink_bo.c
+index 552887f50cf..d5152ce5ef8 100644
+--- a/src/gallium/drivers/zink/zink_bo.c
++++ b/src/gallium/drivers/zink/zink_bo.c
+@@ -721,23 +721,10 @@ zink_bo_unmap(struct zink_screen *screen, struct zink_bo *bo)
+    }
+ }
+ 
+-static VkSemaphore
+-get_semaphore(struct zink_screen *screen)
+-{
+-   VkSemaphoreCreateInfo sci = {
+-      VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+-      NULL,
+-      0
+-   };
+-   VkSemaphore sem;
+-   VkResult ret = VKSCR(CreateSemaphore)(screen->dev, &sci, NULL, &sem);
+-   return ret == VK_SUCCESS ? sem : VK_NULL_HANDLE;
+-}
+-
+ static VkSemaphore
+ buffer_commit_single(struct zink_screen *screen, struct zink_resource *res, struct zink_bo *bo, uint32_t bo_offset, uint32_t offset, uint32_t size, bool commit, VkSemaphore wait)
+ {
+-   VkSemaphore sem = get_semaphore(screen);
++   VkSemaphore sem = zink_create_semaphore(screen);
+    VkBindSparseInfo sparse = {0};
+    sparse.sType = VK_STRUCTURE_TYPE_BIND_SPARSE_INFO;
+    sparse.bufferBindCount = res->obj->storage_buffer ? 2 : 1;
+@@ -886,7 +873,7 @@ out:
+ static VkSemaphore
+ texture_commit_single(struct zink_screen *screen, struct zink_resource *res, VkSparseImageMemoryBind *ibind, unsigned num_binds, bool commit, VkSemaphore wait)
+ {
+-   VkSemaphore sem = get_semaphore(screen);
++   VkSemaphore sem = zink_create_semaphore(screen);
+    VkBindSparseInfo sparse = {0};
+    sparse.sType = VK_STRUCTURE_TYPE_BIND_SPARSE_INFO;
+    sparse.imageBindCount = 1;
+@@ -911,7 +898,7 @@ texture_commit_single(struct zink_screen *screen, struct zink_resource *res, VkS
+ static VkSemaphore
+ texture_commit_miptail(struct zink_screen *screen, struct zink_resource *res, struct zink_bo *bo, uint32_t bo_offset, uint32_t offset, bool commit, VkSemaphore wait)
+ {
+-   VkSemaphore sem = get_semaphore(screen);
++   VkSemaphore sem = zink_create_semaphore(screen);
+    VkBindSparseInfo sparse = {0};
+    sparse.sType = VK_STRUCTURE_TYPE_BIND_SPARSE_INFO;
+    sparse.imageOpaqueBindCount = 1;
+diff --git a/src/gallium/drivers/zink/zink_kopper.c b/src/gallium/drivers/zink/zink_kopper.c
+index 22a1e66b102..819d72e7dfd 100644
+--- a/src/gallium/drivers/zink/zink_kopper.c
++++ b/src/gallium/drivers/zink/zink_kopper.c
+@@ -493,17 +493,12 @@ kopper_acquire(struct zink_screen *screen, struct zink_resource *res, uint64_t t
+           p_atomic_read_relaxed(&cdt->swapchain->num_acquires) >= cdt->swapchain->max_acquires) {
+          util_queue_fence_wait(&cdt->present_fence);
+       }
+-      VkSemaphoreCreateInfo sci = {
+-         VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+-         NULL,
+-         0
+-      };
+       VkResult ret;
+       if (!acquire) {
+-         ret = VKSCR(CreateSemaphore)(screen->dev, &sci, NULL, &acquire);
++         acquire = zink_create_semaphore(screen);
+          assert(acquire);
+-         if (ret != VK_SUCCESS)
+-            return ret;
++         if (!acquire)
++            return VK_ERROR_OUT_OF_HOST_MEMORY;
+       }
+       ret = VKSCR(AcquireNextImageKHR)(screen->dev, cdt->swapchain->swapchain, timeout, acquire, VK_NULL_HANDLE, &res->obj->dt_idx);
+       if (ret != VK_SUCCESS && ret != VK_SUBOPTIMAL_KHR) {
+@@ -611,14 +606,9 @@ zink_kopper_present(struct zink_screen *screen, struct zink_resource *res)
+ {
+    assert(res->obj->dt);
+    assert(!res->obj->present);
+-   VkSemaphoreCreateInfo sci = {
+-      VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+-      NULL,
+-      0
+-   };
+    assert(zink_kopper_acquired(res->obj->dt, res->obj->dt_idx));
+-   VkResult ret = VKSCR(CreateSemaphore)(screen->dev, &sci, NULL, &res->obj->present);
+-   return zink_screen_handle_vkresult(screen, ret) ? res->obj->present : VK_NULL_HANDLE;
++   res->obj->present = zink_create_semaphore(screen);
++   return res->obj->present;
+ }
+ 
+ struct kopper_present_info {
+-- 
+2.17.1
+

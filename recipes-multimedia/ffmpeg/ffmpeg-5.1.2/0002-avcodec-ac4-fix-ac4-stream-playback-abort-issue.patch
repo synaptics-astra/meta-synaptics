@@ -1,0 +1,78 @@
+From 7637473251f16491a9c73430c3364dcd2cab7eb0 Mon Sep 17 00:00:00 2001
+From: ztong <Zhe.Tong@synaptics.com>
+Date: Wed, 14 Dec 2022 15:02:35 +0800
+Subject: [PATCH 2/7] avcodec/ac4: fix ac4 stream playback abort issue
+
+  - Move the frame sync header adding function from ffmpeg/libavcodec/ac4_parser.c
+    to application layer in amp/test/client_test/amp_samples/ffmpeg_helper.c
+  - While update the buffer location, related pkt structure need to update
+    accordingly, so move it to application layer would be easier
+  - This modification need to go along with CL:
+    https://sc-debu-git.synaptics.com/gerrit/#/c/144437/
+  - JIRA: https://jira.synaptics.com/browse/VSSDK-16439
+
+Test Result:
+  ampclient_samples 2 -2 /data/ChID_6ch_48kHz.ac4.mp4
+  ampclient_samples 2 -2 /data/Silent_Movie_321_AC4_H264_MP4_50fps.mp4
+
+Impacts:
+  libavcodec.so
+
+Original CL: https://sc-debu-git.synaptics.com/gerrit/144449
+
+Change-Id: Ie4cef46b2bbd2acda16069116d642549d639ed05
+Reviewed-on: https://gerrit-sha.synaptics.com/gerrit/176781
+Reviewed-by: Zhe Tong <Zhe.Tong@synaptics.com>
+Reviewed-by: Yanyan Peng <Yanyan.Peng@synaptics.com>
+---
+ libavcodec/ac4_parser.c | 27 +++------------------------
+ 1 file changed, 3 insertions(+), 24 deletions(-)
+
+diff --git a/libavcodec/ac4_parser.c b/libavcodec/ac4_parser.c
+index f863fb56e6..6036c8ce02 100644
+--- a/libavcodec/ac4_parser.c
++++ b/libavcodec/ac4_parser.c
+@@ -34,29 +34,9 @@ int ff_aac_ac4_parse(AVCodecParserContext *s1,
+                        const uint8_t **poutbuf, int *poutbuf_size,
+                        const uint8_t *buf, int buf_size)
+ {
+-    uint8_t ac4SyncHeader[7];
+-    void *newBuffer;
+-    int size;
+-
+-    if (!buf_size)
+-        return 0;
+-
+-    ac4SyncHeader[0] = 0xAC;
+-    ac4SyncHeader[1] = 0x40;
+-    ac4SyncHeader[2] = 0xFF;
+-    ac4SyncHeader[3] = 0xFF;
+-    ac4SyncHeader[4] = (uint8_t) ((buf_size >> 16) & 0xFF);
+-    ac4SyncHeader[5] = (uint8_t) ((buf_size >> 8) & 0xFF);
+-    ac4SyncHeader[6] = (uint8_t) ((buf_size >> 0) & 0xFF);
+-
+-    size = buf_size;
+-    newBuffer = av_fast_realloc((void *)buf, &buf_size, buf_size + 7);
+-    memcpy((uint8_t *)newBuffer + 7, buf, buf_size);
+-    memcpy(newBuffer, ac4SyncHeader, 7);
+-    *poutbuf = newBuffer;
+-    *poutbuf_size = size + 7;
+-
+-    return (size + 7);
++    *poutbuf = buf;
++    *poutbuf_size = buf_size;
++    return buf_size;
+ }
+ 
+ static av_cold int ac4_parse_init(AVCodecParserContext *s1)
+@@ -64,7 +44,6 @@ static av_cold int ac4_parse_init(AVCodecParserContext *s1)
+     return 0;
+ }
+ 
+-
+ AVCodecParser ff_ac4_parser = {
+     .codec_ids      = { AV_CODEC_ID_AC4 },
+     .priv_data_size = sizeof(AC4ParseContext),
+-- 
+2.17.1
+

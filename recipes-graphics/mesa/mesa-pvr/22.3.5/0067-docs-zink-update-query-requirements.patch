@@ -1,0 +1,62 @@
+From 60228a19edf4424c15f9e837f3f2c3cc25175f6f Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Tue, 15 Nov 2022 16:04:29 +0100
+Subject: [PATCH 067/168] docs/zink: update query requirements
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+These features are no longer required.
+
+Reviewed-by: Soroush Kashani <soroush.kashani@imgtec.com>
+Reviewed-by: Christian Gmeiner <christian.gmeiner@gmail.com>
+Reviewed-by: Marek Olšák <marek.olsak@amd.com>
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/19750>
+---
+ docs/drivers/zink.rst                              | 2 --
+ src/gallium/drivers/zink/VP_ZINK_requirements.json | 2 --
+ 2 files changed, 4 deletions(-)
+
+diff --git a/docs/drivers/zink.rst b/docs/drivers/zink.rst
+index 7bf397796f6..84508158459 100644
+--- a/docs/drivers/zink.rst
++++ b/docs/drivers/zink.rst
+@@ -117,7 +117,6 @@ supported, although some of these might not actually get verified:
+ 
+ * ``VkPhysicalDeviceFeatures``:
+ 
+-  * ``occlusionQueryPrecise``
+   * ``dualSrcBlend``
+ 
+ * Device extensions:
+@@ -240,7 +239,6 @@ are required to be supported
+ * ``VkPhysicalDeviceFeatures``:
+ 
+   * ``samplerAnisotropy``
+-  * ``pipelineStatisticsQuery``
+   * ``depthBiasClamp``
+ 
+ * Device extensions:
+diff --git a/src/gallium/drivers/zink/VP_ZINK_requirements.json b/src/gallium/drivers/zink/VP_ZINK_requirements.json
+index f42f4c8d7a9..262a690993d 100644
+--- a/src/gallium/drivers/zink/VP_ZINK_requirements.json
++++ b/src/gallium/drivers/zink/VP_ZINK_requirements.json
+@@ -105,7 +105,6 @@
+             },
+             "features": {
+                 "VkPhysicalDeviceFeatures": {
+-                    "occlusionQueryPrecise": true,
+                     "dualSrcBlend": true
+                 }
+             }
+@@ -298,7 +297,6 @@
+             "features": {
+                 "VkPhysicalDeviceFeatures": {
+                     "samplerAnisotropy": true,
+-                    "pipelineStatisticsQuery": true,
+                     "depthBiasClamp": true
+                 }
+             }
+-- 
+2.17.1
+

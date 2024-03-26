@@ -1,0 +1,127 @@
+From 5855b83fe6fd6217cc94fc03ab3b785e192d0ad9 Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Tue, 22 Nov 2022 12:43:24 +0100
+Subject: [PATCH 066/168] mesa: do not require optional queries
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The OpenGL specifications explicitly calls out these queries as allowing
+zero bits, so these features aren't actually required to bump the OpenGL
+version.
+
+While we could in theory also enable the corresponding extensions
+unconditionally, this risks breaking applications that assume that the
+presence of the extensions are sufficient to use meaningfully use them,
+like is the case with most other OpenGL extensions.
+
+However, blocking more recent GL versions due to this seems like a bit
+of an overreaction. So let's allow new OpenGL versions, but not the
+extensions themselves.
+
+Reviewed-by: Marek Olšák <marek.olsak@amd.com>
+Reviewed-by: Soroush Kashani <soroush.kashani@imgtec.com>
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/19750>
+---
+ src/mesa/main/context.h  | 23 +++++++++++++++++++++++
+ src/mesa/main/queryobj.c |  8 +++-----
+ src/mesa/main/version.c  |  5 +----
+ 3 files changed, 27 insertions(+), 9 deletions(-)
+
+diff --git a/src/mesa/main/context.h b/src/mesa/main/context.h
+index a2c8a308403..fbfdd2ddbf8 100644
+--- a/src/mesa/main/context.h
++++ b/src/mesa/main/context.h
+@@ -416,6 +416,29 @@ _mesa_hw_select_enabled(const struct gl_context *ctx)
+       ctx->Const.HardwareAcceleratedSelect;
+ }
+ 
++static inline bool
++_mesa_has_occlusion_query(const struct gl_context *ctx)
++{
++   return _mesa_has_ARB_occlusion_query(ctx) ||
++          _mesa_has_ARB_occlusion_query2(ctx) ||
++          (_mesa_is_desktop_gl(ctx) && ctx->Version >= 15);
++}
++
++static inline bool
++_mesa_has_occlusion_query_boolean(const struct gl_context *ctx)
++{
++   return _mesa_has_ARB_occlusion_query2(ctx) ||
++          _mesa_has_EXT_occlusion_query_boolean(ctx) ||
++          (_mesa_is_desktop_gl(ctx) && ctx->Version >= 33);
++}
++
++static inline bool
++_mesa_has_pipeline_statistics(const struct gl_context *ctx)
++{
++   return _mesa_has_ARB_pipeline_statistics_query(ctx) ||
++          (_mesa_is_desktop_gl(ctx) && ctx->Version >= 46);
++}
++
+ #ifdef __cplusplus
+ }
+ #endif
+diff --git a/src/mesa/main/queryobj.c b/src/mesa/main/queryobj.c
+index 9b75d69f0e4..a524a6c951c 100644
+--- a/src/mesa/main/queryobj.c
++++ b/src/mesa/main/queryobj.c
+@@ -471,7 +471,7 @@ get_pipe_stats_binding_point(struct gl_context *ctx,
+    const int which = target - GL_VERTICES_SUBMITTED;
+    assert(which < MAX_PIPELINE_STATISTICS);
+ 
+-   if (!_mesa_has_ARB_pipeline_statistics_query(ctx))
++   if (!_mesa_has_pipeline_statistics(ctx))
+       return NULL;
+ 
+    return &ctx->Query.pipeline_stats[which];
+@@ -487,14 +487,12 @@ get_query_binding_point(struct gl_context *ctx, GLenum target, GLuint index)
+ {
+    switch (target) {
+    case GL_SAMPLES_PASSED:
+-      if (_mesa_has_ARB_occlusion_query(ctx) ||
+-          _mesa_has_ARB_occlusion_query2(ctx))
++      if (_mesa_has_occlusion_query(ctx))
+          return &ctx->Query.CurrentOcclusionObject;
+       else
+          return NULL;
+    case GL_ANY_SAMPLES_PASSED:
+-      if (_mesa_has_ARB_occlusion_query2(ctx) ||
+-          _mesa_has_EXT_occlusion_query_boolean(ctx))
++      if (_mesa_has_occlusion_query_boolean(ctx))
+          return &ctx->Query.CurrentOcclusionObject;
+       else
+          return NULL;
+diff --git a/src/mesa/main/version.c b/src/mesa/main/version.c
+index a564b8cf1f9..d60724b2c91 100644
+--- a/src/mesa/main/version.c
++++ b/src/mesa/main/version.c
+@@ -252,8 +252,7 @@ compute_version(const struct gl_extensions *extensions,
+    GLuint major, minor, version;
+ 
+    const bool ver_1_4 = (extensions->ARB_shadow);
+-   const bool ver_1_5 = (ver_1_4 &&
+-                         extensions->ARB_occlusion_query);
++   const bool ver_1_5 = ver_1_4;
+    const bool ver_2_0 = (ver_1_5 &&
+                          extensions->ARB_vertex_shader &&
+                          extensions->ARB_fragment_shader &&
+@@ -313,7 +312,6 @@ compute_version(const struct gl_extensions *extensions,
+                          extensions->ARB_blend_func_extended &&
+                          extensions->ARB_explicit_attrib_location &&
+                          extensions->ARB_instanced_arrays &&
+-                         extensions->ARB_occlusion_query2 &&
+                          extensions->ARB_shader_bit_encoding &&
+                          extensions->ARB_texture_rgb10_a2ui &&
+                          extensions->ARB_timer_query &&
+@@ -395,7 +393,6 @@ compute_version(const struct gl_extensions *extensions,
+                          extensions->ARB_gl_spirv &&
+                          extensions->ARB_spirv_extensions &&
+                          extensions->ARB_indirect_parameters &&
+-                         extensions->ARB_pipeline_statistics_query &&
+                          extensions->ARB_polygon_offset_clamp &&
+                          extensions->ARB_shader_atomic_counter_ops &&
+                          extensions->ARB_shader_draw_parameters &&
+-- 
+2.17.1
+

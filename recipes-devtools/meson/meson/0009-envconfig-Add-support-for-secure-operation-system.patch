@@ -1,0 +1,75 @@
+From 496dc91e1a3caf1580bc3371f0256847ecdfa670 Mon Sep 17 00:00:00 2001
+From: Randy Li <ayaka@soulik.info>
+Date: Mon, 11 Oct 2021 15:18:36 +0800
+Subject: [PATCH] [WIP]: envconfig: Add support for secure operation system
+
+There are many secure operation systems likes optee from linaro,
+trusty from Google, and many SoC vendor has its own proprietary
+one.
+
+They don't really share many APIs, we could build trusted
+application with meson as long as you prepare a proper
+staging sysroot and correct cross properties.
+---
+ mesonbuild/envconfig.py           | 6 ++++++
+ mesonbuild/linkers/linkers.py     | 3 ++-
+ mesonbuild/utils/universal.py     | 5 +++++
+ 3 files changed, 13 insertions(+), 1 deletion(-)
+
+diff --git a/mesonbuild/envconfig.py b/mesonbuild/envconfig.py
+index cd464fda1..90e7fde26 100644
+--- a/mesonbuild/envconfig.py
++++ b/mesonbuild/envconfig.py
+@@ -347,6 +347,12 @@ class MachineInfo(HoldableObject):
+         """
+         return self.system == 'openbsd'
+ 
++    def is_teeos(self) -> bool:
++        """
++        Machine is a secure Operating System (optee/trusty)
++        """
++        return self.system == 'teeos'
++
+     def is_dragonflybsd(self) -> bool:
+         """Machine is DragonflyBSD?"""
+         return self.system == 'dragonfly'
+diff --git a/mesonbuild/linkers/linkers.py b/mesonbuild/linkers/linkers.py
+index 8f4d431fb..de642721f 100644
+--- a/mesonbuild/linkers/linkers.py
++++ b/mesonbuild/linkers/linkers.py
+@@ -647,7 +647,8 @@ class GnuLikeDynamicLinkerMixin:
+         return self._apply_prefix('--out-implib=' + implibname)
+ 
+     def thread_flags(self, env: 'Environment') -> T.List[str]:
+-        if env.machines[self.for_machine].is_haiku():
++        m = env.machines[self.for_machine]
++        if m.is_haiku() or m.is_teeos():
+             return []
+         return ['-pthread']
+ 
+diff --git a/mesonbuild/utils/universal.py b/mesonbuild/utils/universal.py
+index 509565876..0e9fb3f42 100644
+--- a/mesonbuild/utils/universal.py
++++ b/mesonbuild/utils/universal.py
+@@ -135,6 +135,7 @@ __all__ = [
+     'is_osx',
+     'is_qnx',
+     'is_sunos',
++    'is_teeos',
+     'is_windows',
+     'is_wsl',
+     'iter_regexin_iter',
+@@ -643,6 +644,10 @@ def is_openbsd() -> bool:
+     return platform.system().lower() == 'openbsd'
+ 
+ 
++def is_teeos() -> bool:
++    return platform.system().lower() == 'teeos'
++
++
+ def is_windows() -> bool:
+     platname = platform.system().lower()
+     return platname == 'windows'
+-- 
+2.17.1
+

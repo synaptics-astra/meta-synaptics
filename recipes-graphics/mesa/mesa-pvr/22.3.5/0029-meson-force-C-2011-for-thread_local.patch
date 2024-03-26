@@ -1,0 +1,35 @@
+From a306c154e036cd8d19bc73e93f03e93c2dcc5d81 Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Mon, 24 Jun 2019 09:35:39 +0100
+Subject: [PATCH 029/168] meson: force C++ 2011 for "thread_local"
+
+For some combinations of Meson and the GNU C++ compiler, Meson does
+not add '-std=c++11' to the command line arguments, resulting in
+compilation errors, due to the use of the "thread_local" keyword (a
+C++ 2011 feature). If the C++ compiler doesn't understand the
+"thread_local" keyword by default, add '-std=c++11' to the compiler
+command line arguments.
+---
+ meson.build | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/meson.build b/meson.build
+index 9fb6dd81d26..3bdbb622b42 100644
+--- a/meson.build
++++ b/meson.build
+@@ -41,6 +41,12 @@ endif
+ cc = meson.get_compiler('c')
+ cpp = meson.get_compiler('cpp')
+ 
++if not cpp.compiles('thread_local int x = 0;', name : 'thread_local')
++  if cpp.has_argument('-std=c++11')
++     add_project_arguments('-std=c++11', language : 'cpp')
++  endif
++endif
++
+ null_dep = dependency('', required : false)
+ 
+ if get_option('layout') != 'mirror'
+-- 
+2.17.1
+

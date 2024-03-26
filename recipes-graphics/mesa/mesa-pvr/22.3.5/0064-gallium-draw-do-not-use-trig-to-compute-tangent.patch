@@ -1,0 +1,38 @@
+From 12da2f975bc767faf71dfd147e9fe1363f7600d7 Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Tue, 22 Nov 2022 09:40:12 +0100
+Subject: [PATCH 064/168] gallium/draw: do not use trig to compute tangent
+
+We've already done the expensive part of computing this without
+trigenometry, e.g computing the length. So let's finish it off.
+
+Reviewed-by: Roland Scheidegger <sroland@vmware.com>
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/19899>
+---
+ src/gallium/auxiliary/draw/draw_pipe_aaline.c | 7 +++----
+ 1 file changed, 3 insertions(+), 4 deletions(-)
+
+diff --git a/src/gallium/auxiliary/draw/draw_pipe_aaline.c b/src/gallium/auxiliary/draw/draw_pipe_aaline.c
+index edbbc7d5451..464f9c3dd96 100644
+--- a/src/gallium/auxiliary/draw/draw_pipe_aaline.c
++++ b/src/gallium/auxiliary/draw/draw_pipe_aaline.c
+@@ -420,13 +420,12 @@ aaline_line(struct draw_stage *stage, struct prim_header *header)
+    float *pos, *tex;
+    float dx = header->v[1]->data[posPos][0] - header->v[0]->data[posPos][0];
+    float dy = header->v[1]->data[posPos][1] - header->v[0]->data[posPos][1];
+-   float a = atan2f(dy, dx);
+-   float c_a = cosf(a), s_a = sinf(a);
+-   float half_length;
++   float length = sqrtf(dx * dx + dy * dy);
++   float c_a = dx / length, s_a = dy / length;
++   float half_length = 0.5 * length;
+    float t_l, t_w;
+    uint i;
+ 
+-   half_length = 0.5f * sqrtf(dx * dx + dy * dy);
+    half_length = half_length + 0.5f;
+ 
+    t_w = half_width;
+-- 
+2.17.1
+

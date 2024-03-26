@@ -1,0 +1,33 @@
+From 8b273c3bf9e799a37c42662ea02b00934433a5f3 Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Thu, 5 Jan 2023 16:39:08 -0500
+Subject: [PATCH 138/168] zink: block pipeline fast-pathing for any programs
+ using depth texture modes
+
+the data for this is too big to compress into a shader key, so these pipelines
+will always consume more cpu
+
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/20598>
+---
+ src/gallium/drivers/zink/zink_program_state.hpp | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/src/gallium/drivers/zink/zink_program_state.hpp b/src/gallium/drivers/zink/zink_program_state.hpp
+index 0a5a40bf98c..3c8322efac5 100644
+--- a/src/gallium/drivers/zink/zink_program_state.hpp
++++ b/src/gallium/drivers/zink/zink_program_state.hpp
+@@ -226,7 +226,10 @@ zink_get_gfx_pipeline(struct zink_context *ctx,
+    const int rp_idx = state->render_pass ? 1 : 0;
+    /* shortcut for reusing previous pipeline across program changes */
+    if (DYNAMIC_STATE == ZINK_DYNAMIC_VERTEX_INPUT || DYNAMIC_STATE == ZINK_DYNAMIC_VERTEX_INPUT2) {
+-      if (prog->last_finalized_hash[rp_idx][idx] == state->final_hash && !prog->inline_variants && likely(prog->last_pipeline[rp_idx][idx])) {
++      if (prog->last_finalized_hash[rp_idx][idx] == state->final_hash &&
++          !prog->inline_variants && likely(prog->last_pipeline[rp_idx][idx]) &&
++          /* this data is too big to compare in the fast-path */
++          likely(!prog->shaders[MESA_SHADER_FRAGMENT]->fs.legacy_shadow_mask)) {
+          state->pipeline = prog->last_pipeline[rp_idx][idx]->pipeline;
+          return state->pipeline;
+       }
+-- 
+2.17.1
+

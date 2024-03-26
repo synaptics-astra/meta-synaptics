@@ -1,0 +1,27 @@
+From adec4a54cb5437b660492e21d0ac09577967bf60 Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Fri, 20 Jan 2023 16:58:27 +0000
+Subject: [PATCH 128/168] zink: add VK_EXT_image_robustness
+
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/20808>
+---
+ src/gallium/drivers/zink/zink_device_info.py | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/src/gallium/drivers/zink/zink_device_info.py b/src/gallium/drivers/zink/zink_device_info.py
+index ec416f2edf7..2847a16fac4 100644
+--- a/src/gallium/drivers/zink/zink_device_info.py
++++ b/src/gallium/drivers/zink/zink_device_info.py
+@@ -164,6 +164,9 @@ EXTENSIONS = [
+               properties=True,
+               features=True,
+               conditions=["$feats.nullDescriptor"]),
++    Extension("VK_EXT_image_robustness",
++              alias="rb_image",
++              features=True),
+     Extension("VK_EXT_image_drm_format_modifier"),
+     Extension("VK_EXT_vertex_attribute_divisor",
+               alias="vdiv",
+-- 
+2.17.1
+

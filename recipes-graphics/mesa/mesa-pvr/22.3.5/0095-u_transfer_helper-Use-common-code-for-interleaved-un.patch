@@ -1,0 +1,78 @@
+From 017a587c585671312dd3c75797c8471a7efde490 Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Wed, 4 Jan 2023 11:52:19 -0800
+Subject: [PATCH 095/168] u_transfer_helper: Use common code for interleaved
+ unmap.
+
+The function was static and only used from this caller, and the only
+difference was that the interleaved case didn't handle trans->ss (which
+will always be unset for an interleaved mapping since interleaving splits
+the underlying map of the MSAA resource into trans->trans and
+trans->trans2).
+
+Reviewed-by: Mike Blumenkrantz <michael.blumenkrantz@gmail.com>
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/20523>
+---
+ .../auxiliary/util/u_transfer_helper.c        | 36 ++-----------------
+ 1 file changed, 2 insertions(+), 34 deletions(-)
+
+diff --git a/src/gallium/auxiliary/util/u_transfer_helper.c b/src/gallium/auxiliary/util/u_transfer_helper.c
+index dad0a4c44b5..dc011a09dbb 100644
+--- a/src/gallium/auxiliary/util/u_transfer_helper.c
++++ b/src/gallium/auxiliary/util/u_transfer_helper.c
+@@ -495,22 +495,14 @@ u_transfer_helper_transfer_flush_region(struct pipe_context *pctx,
+    }
+ }
+ 
+-static void
+-u_transfer_helper_deinterleave_transfer_unmap(struct pipe_context *pctx,
+-                                              struct pipe_transfer *ptrans);
+-
+ void
+ u_transfer_helper_transfer_unmap(struct pipe_context *pctx,
+                                  struct pipe_transfer *ptrans)
+ {
+    struct u_transfer_helper *helper = pctx->screen->transfer_helper;
++   bool interleave = need_interleave_path(helper, ptrans->resource->format);
+ 
+-   if (need_interleave_path(helper, ptrans->resource->format)) {
+-      u_transfer_helper_deinterleave_transfer_unmap(pctx, ptrans);
+-      return;
+-   }
+-
+-   if (handle_transfer(ptrans->resource)) {
++   if (handle_transfer(ptrans->resource) || interleave) {
+       struct u_transfer *trans = u_transfer(ptrans);
+ 
+       if (!(ptrans->usage & PIPE_MAP_FLUSH_EXPLICIT)) {
+@@ -671,27 +663,3 @@ fail:
+    free(trans);
+    return NULL;
+ }
+-
+-static void
+-u_transfer_helper_deinterleave_transfer_unmap(struct pipe_context *pctx,
+-                                              struct pipe_transfer *ptrans)
+-{
+-   struct u_transfer_helper *helper = pctx->screen->transfer_helper;
+-
+-   struct u_transfer *trans = (struct u_transfer *)ptrans;
+-
+-   if (!(ptrans->usage & PIPE_MAP_FLUSH_EXPLICIT)) {
+-      struct pipe_box box;
+-      u_box_2d(0, 0, ptrans->box.width, ptrans->box.height, &box);
+-      flush_region(pctx, ptrans, &box);
+-   }
+-
+-   helper->vtbl->transfer_unmap(pctx, trans->trans);
+-   if (trans->trans2)
+-      helper->vtbl->transfer_unmap(pctx, trans->trans2);
+-
+-   pipe_resource_reference(&ptrans->resource, NULL);
+-
+-   free(trans->staging);
+-   free(trans);
+-}
+-- 
+2.17.1
+

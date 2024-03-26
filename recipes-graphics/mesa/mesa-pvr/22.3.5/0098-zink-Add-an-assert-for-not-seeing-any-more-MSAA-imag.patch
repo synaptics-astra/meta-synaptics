@@ -1,0 +1,39 @@
+From e6678539bd9306db43be7dd4b9afdfcfbd47523f Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Wed, 4 Jan 2023 09:13:39 -0800
+Subject: [PATCH 098/168] zink: Add an assert for not seeing any more MSAA
+ image-to-buffer copies.
+
+Now that transfer_map gets MSAA handled by the helper, we shouldn't have
+to worry about this any more.
+
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/20523>
+---
+ src/gallium/drivers/zink/zink_context.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/src/gallium/drivers/zink/zink_context.c b/src/gallium/drivers/zink/zink_context.c
+index 07194fd2965..0e959e32714 100644
+--- a/src/gallium/drivers/zink/zink_context.c
++++ b/src/gallium/drivers/zink/zink_context.c
+@@ -4356,7 +4356,8 @@ zink_copy_image_buffer(struct zink_context *ctx, struct zink_resource *dst, stru
+       int aspect = 1 << u_bit_scan(&aspects);
+       region.imageSubresource.aspectMask = aspect;
+ 
+-      /* this may or may not work with multisampled depth/stencil buffers depending on the driver implementation:
++      /* MSAA transfers should have already been handled by U_TRANSFER_HELPER_MSAA_MAP, since
++       * there's no way to resolve using this interface:
+        *
+        * srcImage must have a sample count equal to VK_SAMPLE_COUNT_1_BIT
+        * - vkCmdCopyImageToBuffer spec
+@@ -4364,6 +4365,7 @@ zink_copy_image_buffer(struct zink_context *ctx, struct zink_resource *dst, stru
+        * dstImage must have a sample count equal to VK_SAMPLE_COUNT_1_BIT
+        * - vkCmdCopyBufferToImage spec
+        */
++      assert(img->base.b.nr_samples <= 1);
+       if (buf2img)
+          VKCTX(CmdCopyBufferToImage)(cmdbuf, buf->obj->buffer, img->obj->image, img->layout, 1, &region);
+       else
+-- 
+2.17.1
+

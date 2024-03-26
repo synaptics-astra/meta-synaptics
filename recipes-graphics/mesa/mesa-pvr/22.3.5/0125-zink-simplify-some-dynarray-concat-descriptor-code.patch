@@ -1,0 +1,38 @@
+From c8eae078337fa0f8233d639496c7082270f97871 Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Thu, 12 Jan 2023 14:27:19 -0500
+Subject: [PATCH 125/168] zink: simplify some dynarray concat descriptor code
+
+TIL this exists
+
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/20681>
+---
+ src/gallium/drivers/zink/zink_descriptors.c | 12 +++---------
+ 1 file changed, 3 insertions(+), 9 deletions(-)
+
+diff --git a/src/gallium/drivers/zink/zink_descriptors.c b/src/gallium/drivers/zink/zink_descriptors.c
+index f8c8467c545..d6285ec89a3 100644
+--- a/src/gallium/drivers/zink/zink_descriptors.c
++++ b/src/gallium/drivers/zink/zink_descriptors.c
+@@ -1042,15 +1042,9 @@ consolidate_pool_alloc(struct zink_screen *screen, struct zink_descriptor_pool_m
+    if (!mpool->overflowed_pools[mpool->overflow_idx].size)
+       return;
+ 
+-   unsigned old_size = mpool->overflowed_pools[!mpool->overflow_idx].size;
+-   if (util_dynarray_resize(&mpool->overflowed_pools[!mpool->overflow_idx], struct zink_descriptor_pool*, sizes[0] + sizes[1])) {
+-      /* attempt to consolidate all the overflow into one array to maximize reuse */
+-      uint8_t *src = mpool->overflowed_pools[mpool->overflow_idx].data;
+-      uint8_t *dst = mpool->overflowed_pools[!mpool->overflow_idx].data;
+-      dst += old_size;
+-      memcpy(dst, src, mpool->overflowed_pools[mpool->overflow_idx].size);
+-      util_dynarray_clear(&mpool->overflowed_pools[mpool->overflow_idx]);
+-   }
++   /* attempt to consolidate all the overflow into one array to maximize reuse */
++   util_dynarray_append_dynarray(&mpool->overflowed_pools[!mpool->overflow_idx], &mpool->overflowed_pools[mpool->overflow_idx]);
++   util_dynarray_clear(&mpool->overflowed_pools[mpool->overflow_idx]);
+ }
+ 
+ /* called when a batch state is reset, i.e., just before a batch state becomes the current state */
+-- 
+2.17.1
+

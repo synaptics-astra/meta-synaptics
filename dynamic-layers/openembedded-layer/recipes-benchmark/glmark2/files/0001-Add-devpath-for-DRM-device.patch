@@ -1,0 +1,35 @@
+diff --git a/src/native-state-drm.cpp b/src/native-state-drm.cpp
+index d6bb743..530d428 100644
+--- a/src/native-state-drm.cpp
++++ b/src/native-state-drm.cpp
+@@ -485,15 +485,23 @@ NativeStateDRM::init()
+     // TODO: The user should be able to define *exactly* which device
+     //       node to open and the program should try to open only
+     //       this node, in order to take care of unknown use cases.
+-    int fd = open_using_udev_scan();
+
+-    if (!valid_fd(fd)) {
+-        fd = open_using_module_checking();
+-    }
++    char *dev_path = dev_path = getenv("DEVPATH");
++    int fd = -1;
++    if (dev_path != NULL) {
++	Log::debug("Got DRM device %s\n", dev_path);
++	fd = open(dev_path, O_RDWR | O_NONBLOCK);
++    } else {
++        fd = open_using_udev_scan();
++
++        if (!valid_fd(fd)) {
++            fd = open_using_module_checking();
++        }
+
+-    if (!valid_fd(fd)) {
+-        Log::error("Failed to find a suitable DRM device\n");
+-        return false;
++        if (!valid_fd(fd)) {
++            Log::error("Failed to find a suitable DRM device\n");
++            return false;
++        }
+     }
+
+     fd_ = fd;

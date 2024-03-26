@@ -1,0 +1,28 @@
+From 9acf63a04d038874e6402499b150add66114dad5 Mon Sep 17 00:00:00 2001
+From: "Hsia-Jun(Randy) Li" <randy.li@synaptics.com>
+Date: Fri, 20 Oct 2023 19:09:44 +0800
+Subject: [PATCH] av1parse: drop codec_data when not match
+
+Signed-off-by: Hsia-Jun(Randy) Li <randy.li@synaptics.com>
+---
+ subprojects/gst-plugins-bad/gst/videoparsers/gstav1parse.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/subprojects/gst-plugins-bad/gst/videoparsers/gstav1parse.c b/subprojects/gst-plugins-bad/gst/videoparsers/gstav1parse.c
+index 9eaa1f47d9..d097629974 100644
+--- a/subprojects/gst-plugins-bad/gst/videoparsers/gstav1parse.c
++++ b/subprojects/gst-plugins-bad/gst/videoparsers/gstav1parse.c
+@@ -740,6 +740,10 @@ gst_av1_parse_update_src_caps (GstAV1Parse * self, GstCaps * caps)
+   src_caps = gst_pad_get_current_caps (GST_BASE_PARSE_SRC_PAD (self));
+ 
+   if (!(src_caps && gst_caps_is_strictly_equal (src_caps, final_caps))) {
++    if (self->align != GST_AV1_PARSE_ALIGN_TEMPORAL_UNIT) {
++      GstStructure *s = gst_caps_get_structure (final_caps, 0);
++      gst_structure_remove_field (s, "codec_data");
++    }
+     GST_DEBUG_OBJECT (self, "Update src caps %" GST_PTR_FORMAT, final_caps);
+     gst_pad_set_caps (GST_BASE_PARSE_SRC_PAD (self), final_caps);
+   }
+-- 
+2.17.1
+

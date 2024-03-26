@@ -1,0 +1,201 @@
+From bb7c1fe9802e72efb1a2a38a3d4007eeaba83bce Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Thu, 5 Jan 2023 16:49:23 -0500
+Subject: [PATCH 142/168] zink: pass depth swizzle data block to shader compile
+
+with everything now hooked up, this should fix all related test failures
+
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/20598>
+---
+ .../drivers/zink/ci/zink-anv-tgl-fails.txt    | 63 -------------------
+ .../drivers/zink/ci/zink-lvp-fails.txt        | 50 ---------------
+ src/gallium/drivers/zink/zink_program.c       |  4 +-
+ 3 files changed, 2 insertions(+), 115 deletions(-)
+
+diff --git a/src/gallium/drivers/zink/ci/zink-anv-tgl-fails.txt b/src/gallium/drivers/zink/ci/zink-anv-tgl-fails.txt
+index 4543d940413..36ff7cbcd6d 100644
+--- a/src/gallium/drivers/zink/ci/zink-anv-tgl-fails.txt
++++ b/src/gallium/drivers/zink/ci/zink-anv-tgl-fails.txt
+@@ -266,69 +266,6 @@ spec@!opengl 1.1@linestipple,Fail
+ # (and more)
+ spec@!opengl 1.1@polygon-mode,Fail
+ 
+-spec@!opengl 1.1@read-front clear-front-first,Fail
+-spec@!opengl 1.1@read-front samples=16,Fail
+-spec@!opengl 1.1@read-front samples=2,Fail
+-spec@!opengl 1.1@read-front samples=4,Fail
+-spec@!opengl 1.1@read-front samples=6,Fail
+-spec@!opengl 1.1@read-front samples=8,Fail
+-spec@!opengl 1.1@read-front,Fail
+-
+-# depth texturing: zink is returning intensity shadow comparisons and depth samples, regardless of depth mode.
+-# Check out the "splat" in zink_compiler.c around !is_new_style_shadow, and the swizzle rewrite for depth
+-# textures in zink_create_sampler_view().
+-spec@!opengl 2.0@depth-tex-modes-glsl,Fail
+-spec@arb_depth_texture@depth-tex-modes,Fail
+-spec@arb_fragment_program_shadow@tex-shadow1d,Fail
+-spec@arb_fragment_program_shadow@tex-shadow2d,Fail
+-spec@arb_fragment_program_shadow@tex-shadow2drect,Fail
+-spec@arb_fragment_program_shadow@txp-shadow1d,Fail
+-spec@arb_fragment_program_shadow@txp-shadow2d,Fail
+-spec@arb_fragment_program_shadow@txp-shadow2drect,Fail
+-spec@arb_shader_texture_lod@execution@arb_shader_texture_lod-texgradcube,Fail
+-spec@arb_shader_texture_lod@execution@glsl-fs-shadow2dgradarb-01,Fail
+-spec@arb_shader_texture_lod@execution@glsl-fs-shadow2dgradarb-03,Fail
+-spec@arb_shader_texture_lod@execution@glsl-fs-shadow2dgradarb-07,Fail
+-spec@arb_shader_texture_lod@execution@glsl-fs-shadow2dgradarb-08,Fail
+-spec@arb_shader_texture_lod@execution@glsl-fs-shadow2dgradarb-cumulative,Fail
+-spec@arb_texture_rectangle@glsl-fs-shadow2drect-01,Fail
+-spec@arb_texture_rectangle@glsl-fs-shadow2drect-03,Fail
+-spec@arb_texture_rectangle@glsl-fs-shadow2drect-07,Fail
+-spec@arb_texture_rectangle@glsl-fs-shadow2drect-08,Fail
+-spec@arb_texture_rectangle@glsl-fs-shadow2drect,Fail
+-spec@arb_texture_rectangle@glsl-fs-shadow2drectproj,Fail
+-spec@arb_texture_rg@execution@fs-shadow2d-red-01,Fail
+-spec@arb_texture_rg@execution@fs-shadow2d-red-02,Fail
+-spec@arb_texture_rg@execution@fs-shadow2d-red-03,Fail
+-spec@ext_texture_array@glsl-fs-shadow1darray-01,Fail
+-spec@ext_texture_array@glsl-fs-shadow1darray-03,Fail
+-spec@ext_texture_array@glsl-fs-shadow1darray-07,Fail
+-spec@ext_texture_array@glsl-fs-shadow1darray-08,Fail
+-spec@ext_texture_array@glsl-fs-shadow1darray-bias,Fail
+-spec@ext_texture_array@glsl-fs-shadow1darray,Fail
+-spec@ext_texture_array@glsl-fs-shadow2darray-01,Fail
+-spec@ext_texture_array@glsl-fs-shadow2darray-03,Fail
+-spec@ext_texture_array@glsl-fs-shadow2darray-07,Fail
+-spec@ext_texture_array@glsl-fs-shadow2darray-08,Fail
+-spec@ext_texture_array@glsl-fs-shadow2darray,Fail
+-spec@ext_texture_swizzle@depth_texture_mode_and_swizzle,Fail
+-spec@glsl-1.10@execution@samplers@glsl-fs-shadow1d-01,Fail
+-spec@glsl-1.10@execution@samplers@glsl-fs-shadow1d-03,Fail
+-spec@glsl-1.10@execution@samplers@glsl-fs-shadow1d-07,Fail
+-spec@glsl-1.10@execution@samplers@glsl-fs-shadow1d-08,Fail
+-spec@glsl-1.10@execution@samplers@glsl-fs-shadow1d-bias,Fail
+-spec@glsl-1.10@execution@samplers@glsl-fs-shadow1d,Fail
+-spec@glsl-1.10@execution@samplers@glsl-fs-shadow1dproj-bias,Fail
+-spec@glsl-1.10@execution@samplers@glsl-fs-shadow1dproj,Fail
+-spec@glsl-1.10@execution@samplers@glsl-fs-shadow2d-01,Fail
+-spec@glsl-1.10@execution@samplers@glsl-fs-shadow2d-03,Fail
+-spec@glsl-1.10@execution@samplers@glsl-fs-shadow2d-07,Fail
+-spec@glsl-1.10@execution@samplers@glsl-fs-shadow2d-08,Fail
+-spec@glsl-1.10@execution@samplers@glsl-fs-shadow2d-bias,Fail
+-spec@glsl-1.10@execution@samplers@glsl-fs-shadow2d,Fail
+-spec@glsl-1.10@execution@samplers@glsl-fs-shadow2dproj-bias,Fail
+-spec@glsl-1.10@execution@samplers@glsl-fs-shadow2dproj,Fail
+-
+ spec@!opengl 2.0@gl-2.0-edgeflag-immediate,Fail
+ spec@!opengl 2.0@gl-2.0-edgeflag,Fail
+ 
+diff --git a/src/gallium/drivers/zink/ci/zink-lvp-fails.txt b/src/gallium/drivers/zink/ci/zink-lvp-fails.txt
+index 54d5bbc7e08..c1aa22b9704 100644
+--- a/src/gallium/drivers/zink/ci/zink-lvp-fails.txt
++++ b/src/gallium/drivers/zink/ci/zink-lvp-fails.txt
+@@ -85,13 +85,11 @@ spec@!opengl 1.1@polygon-mode-offset@config 6: Expected blue pixel in center,Fai
+ spec@!opengl 1.1@polygon-mode-offset@config 6: Expected white pixel on right edge,Fail
+ spec@!opengl 1.1@polygon-mode-offset@config 6: Expected white pixel on top edge,Fail
+ spec@!opengl 1.2@copyteximage 3d,Fail
+-spec@!opengl 2.0@depth-tex-modes-glsl,Fail
+ spec@!opengl 2.0@gl-2.0-edgeflag,Fail
+ spec@!opengl 2.0@gl-2.0-edgeflag-immediate,Fail
+ spec@!opengl 2.1@pbo,Fail
+ spec@!opengl 2.1@pbo@test_polygon_stip,Fail
+ spec@!opengl 2.1@polygon-stipple-fs,Fail
+-spec@arb_depth_texture@depth-tex-modes,Fail
+ spec@arb_gpu_shader_fp64@execution@arb_gpu_shader_fp64-tf-separate,Fail
+ spec@arb_pipeline_statistics_query@arb_pipeline_statistics_query-frag,Fail
+ spec@arb_point_sprite@arb_point_sprite-checkerboard,Fail
+@@ -154,7 +152,6 @@ spec@ext_framebuffer_multisample@interpolation 4 centroid-edges,Fail
+ spec@ext_framebuffer_multisample@interpolation 4 non-centroid-deriv-disabled,Fail
+ spec@ext_framebuffer_multisample@interpolation 4 non-centroid-disabled,Fail
+ spec@ext_packed_float@query-rgba-signed-components,Fail
+-spec@ext_texture_swizzle@depth_texture_mode_and_swizzle,Fail
+ spec@intel_performance_query@intel_performance_query-issue_2235,Fail
+ 
+ spec@khr_texture_compression_astc@miptree-gl srgb-fp,Fail
+@@ -185,12 +182,6 @@ spec@!opengl 1.0@rasterpos@glsl_vs_tes_linked,Fail
+ spec@arb_arrays_of_arrays@execution@image_store@basic-imagestore-mixed-const-non-const-uniform-index,Fail
+ spec@arb_arrays_of_arrays@execution@image_store@basic-imagestore-mixed-const-non-const-uniform-index2,Fail
+ spec@arb_arrays_of_arrays@execution@image_store@basic-imagestore-non-const-uniform-index,Fail
+-spec@arb_fragment_program_shadow@tex-shadow1d,Fail
+-spec@arb_fragment_program_shadow@tex-shadow2d,Fail
+-spec@arb_fragment_program_shadow@tex-shadow2drect,Fail
+-spec@arb_fragment_program_shadow@txp-shadow1d,Fail
+-spec@arb_fragment_program_shadow@txp-shadow2d,Fail
+-spec@arb_fragment_program_shadow@txp-shadow2drect,Fail
+ spec@arb_gl_spirv@execution@xfb@vs_block_array,Fail
+ spec@arb_gpu_shader_fp64@execution@conversion@frag-conversion-explicit-dmat2-mat2,Fail
+ spec@arb_gpu_shader_fp64@execution@conversion@frag-conversion-explicit-dmat2x3-mat2x3,Fail
+@@ -232,48 +223,7 @@ spec@arb_gpu_shader_fp64@execution@conversion@vert-conversion-explicit-dvec2-vec
+ spec@arb_gpu_shader_fp64@execution@conversion@vert-conversion-explicit-dvec3-vec3,Fail
+ spec@arb_gpu_shader_fp64@execution@conversion@vert-conversion-explicit-dvec4-vec4,Fail
+ spec@arb_shader_storage_buffer_object@execution@ssbo-atomiccompswap-int,Fail
+-spec@arb_shader_texture_lod@execution@glsl-fs-shadow2dgradarb-01,Fail
+-spec@arb_shader_texture_lod@execution@glsl-fs-shadow2dgradarb-03,Fail
+-spec@arb_shader_texture_lod@execution@glsl-fs-shadow2dgradarb-07,Fail
+-spec@arb_shader_texture_lod@execution@glsl-fs-shadow2dgradarb-08,Fail
+-spec@arb_shader_texture_lod@execution@glsl-fs-shadow2dgradarb-cumulative,Fail
+ spec@arb_tessellation_shader@execution@gs-primitiveid-instanced,Fail
+-spec@arb_texture_rectangle@glsl-fs-shadow2drect,Fail
+-spec@arb_texture_rectangle@glsl-fs-shadow2drect-01,Fail
+-spec@arb_texture_rectangle@glsl-fs-shadow2drect-03,Fail
+-spec@arb_texture_rectangle@glsl-fs-shadow2drect-07,Fail
+-spec@arb_texture_rectangle@glsl-fs-shadow2drect-08,Fail
+-spec@arb_texture_rectangle@glsl-fs-shadow2drectproj,Fail
+-spec@arb_texture_rg@execution@fs-shadow2d-red-01,Fail
+-spec@arb_texture_rg@execution@fs-shadow2d-red-02,Fail
+-spec@arb_texture_rg@execution@fs-shadow2d-red-03,Fail
+-spec@ext_texture_array@glsl-fs-shadow1darray,Fail
+-spec@ext_texture_array@glsl-fs-shadow1darray-01,Fail
+-spec@ext_texture_array@glsl-fs-shadow1darray-03,Fail
+-spec@ext_texture_array@glsl-fs-shadow1darray-07,Fail
+-spec@ext_texture_array@glsl-fs-shadow1darray-08,Fail
+-spec@ext_texture_array@glsl-fs-shadow1darray-bias,Fail
+-spec@ext_texture_array@glsl-fs-shadow2darray,Fail
+-spec@ext_texture_array@glsl-fs-shadow2darray-01,Fail
+-spec@ext_texture_array@glsl-fs-shadow2darray-03,Fail
+-spec@ext_texture_array@glsl-fs-shadow2darray-07,Fail
+-spec@ext_texture_array@glsl-fs-shadow2darray-08,Fail
+-spec@glsl-1.10@execution@samplers@glsl-fs-shadow1d,Fail
+-spec@glsl-1.10@execution@samplers@glsl-fs-shadow1d-01,Fail
+-spec@glsl-1.10@execution@samplers@glsl-fs-shadow1d-03,Fail
+-spec@glsl-1.10@execution@samplers@glsl-fs-shadow1d-07,Fail
+-spec@glsl-1.10@execution@samplers@glsl-fs-shadow1d-08,Fail
+-spec@glsl-1.10@execution@samplers@glsl-fs-shadow1d-bias,Fail
+-spec@glsl-1.10@execution@samplers@glsl-fs-shadow1dproj,Fail
+-spec@glsl-1.10@execution@samplers@glsl-fs-shadow1dproj-bias,Fail
+-spec@glsl-1.10@execution@samplers@glsl-fs-shadow2d,Fail
+-spec@glsl-1.10@execution@samplers@glsl-fs-shadow2d-01,Fail
+-spec@glsl-1.10@execution@samplers@glsl-fs-shadow2d-03,Fail
+-spec@glsl-1.10@execution@samplers@glsl-fs-shadow2d-07,Fail
+-spec@glsl-1.10@execution@samplers@glsl-fs-shadow2d-08,Fail
+-spec@glsl-1.10@execution@samplers@glsl-fs-shadow2d-bias,Fail
+-spec@glsl-1.10@execution@samplers@glsl-fs-shadow2dproj,Fail
+-spec@glsl-1.10@execution@samplers@glsl-fs-shadow2dproj-bias,Fail
+ spec@glsl-1.50@execution@primitive-id-no-gs-quad-strip,Fail
+ spec@glsl-1.50@execution@primitive-id-no-gs-quads,Fail
+ spec@glsl-4.00@execution@conversion@frag-conversion-explicit-dmat2-mat2,Fail
+diff --git a/src/gallium/drivers/zink/zink_program.c b/src/gallium/drivers/zink/zink_program.c
+index 568ac5c0980..98a3ddeff41 100644
+--- a/src/gallium/drivers/zink/zink_program.c
++++ b/src/gallium/drivers/zink/zink_program.c
+@@ -143,7 +143,7 @@ create_shader_module_for_stage(struct zink_context *ctx, struct zink_screen *scr
+       assert(ctx); //TODO async
+       mod = zink_shader_tcs_compile(screen, zs, patch_vertices);
+    } else {
+-      mod = zink_shader_compile(screen, zs, prog->nir[stage], key, NULL);
++      mod = zink_shader_compile(screen, zs, prog->nir[stage], key, &ctx->di.shadow);
+    }
+    if (!mod) {
+       FREE(zm);
+@@ -256,7 +256,7 @@ create_shader_module_for_stage_optimal(struct zink_context *ctx, struct zink_scr
+       struct zink_tcs_key *tcs = (struct zink_tcs_key*)key;
+       mod = zink_shader_tcs_compile(screen, zs, tcs->patch_vertices);
+    } else {
+-      mod = zink_shader_compile(screen, zs, prog->nir[stage], (struct zink_shader_key*)key, NULL);
++      mod = zink_shader_compile(screen, zs, prog->nir[stage], (struct zink_shader_key*)key, shadow_needs_shader_swizzle ? &ctx->di.shadow : NULL);
+    }
+    if (!mod) {
+       FREE(zm);
+-- 
+2.17.1
+

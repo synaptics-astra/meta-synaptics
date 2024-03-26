@@ -1,0 +1,42 @@
+diff --git a/src/native-state-drm.cpp b/src/native-state-drm.cpp
+index 530d428..f7c9669 100644
+--- a/src/native-state-drm.cpp
++++ b/src/native-state-drm.cpp
+@@ -137,6 +137,7 @@ NativeStateDRM::flip()
+             Log::debug("Error in select\n");
+             if (should_quit()) {
+                 gbm_surface_release_buffer(surface_, bo_);
++                gbm_surface_release_buffer(surface_, interim_bo_);
+                 bo_ = next;
+             }
+             return;
+@@ -145,7 +146,8 @@ NativeStateDRM::flip()
+     }
+ 
+     gbm_surface_release_buffer(surface_, bo_);
+-    bo_ = next;
++    bo_ = interim_bo_;
++    interim_bo_ = next;
+ }
+ 
+ /*******************
+diff --git a/src/native-state-drm.h b/src/native-state-drm.h
+index 4296178..94cfb3a 100644
+--- a/src/native-state-drm.h
++++ b/src/native-state-drm.h
+@@ -46,6 +46,7 @@ public:
+         dev_(0),
+         surface_(0),
+         bo_(0),
++        interim_bo_(0),
+         fb_(0),
+         crtc_set_(false) {}
+     ~NativeStateDRM() { cleanup(); }
+@@ -85,6 +86,7 @@ private:
+     drmModeModeInfo* mode_;
+     gbm_device* dev_;
+     gbm_surface* surface_;
++    gbm_bo* interim_bo_;
+     gbm_bo* bo_;
+     DRMFBState* fb_;
+     bool crtc_set_;

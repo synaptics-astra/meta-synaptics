@@ -1,0 +1,48 @@
+From 5c174f7df9c00ca384f348acdca4052fff547b36 Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Wed, 4 Jan 2023 14:53:48 -0800
+Subject: [PATCH 092/168] ci: Fix VK driver setup for HWCI_START_*.
+
+Review feedback requested a change that was incorrect, causing Xorg to
+start to fail, but I forgot to retest the manual -full jobs that relied on
+it.
+
+Fixes: 99a6f2a1864f ("ci: Set the path to the VK drivers during HWCI_START_XORG/WESTON.")
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/20523>
+---
+ .gitlab-ci/common/init-stage2.sh | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/.gitlab-ci/common/init-stage2.sh b/.gitlab-ci/common/init-stage2.sh
+index a0718bf37fc..f80cc7f8beb 100755
+--- a/.gitlab-ci/common/init-stage2.sh
++++ b/.gitlab-ci/common/init-stage2.sh
+@@ -118,6 +118,7 @@ BACKGROUND_PIDS="$! $BACKGROUND_PIDS"
+ if [ -n "$HWCI_START_XORG" ]; then
+   echo "touch /xorg-started; sleep 100000" > /xorg-script
+   env \
++    VK_ICD_FILENAMES=/install/share/vulkan/icd.d/${VK_DRIVER}_icd.`uname -m`.json \
+     xinit /bin/sh /xorg-script -- /usr/bin/Xorg -noreset -s 0 -dpms -logfile /Xorg.0.log &
+   BACKGROUND_PIDS="$! $BACKGROUND_PIDS"
+ 
+@@ -131,6 +132,17 @@ if [ -n "$HWCI_START_XORG" ]; then
+   export DISPLAY=:0
+ fi
+ 
++if [ -n "$HWCI_START_WESTON" ]; then
++  export XDG_RUNTIME_DIR=/run/user
++  mkdir -p $XDG_RUNTIME_DIR
++
++  env \
++    VK_ICD_FILENAMES=/install/share/vulkan/icd.d/${VK_DRIVER}_icd.`uname -m`.json \
++    weston -Bheadless-backend.so --use-gl -Swayland-0 &
++  export WAYLAND_DISPLAY=wayland-0
++  sleep 1
++fi
++
+ RESULT=fail
+ set +e
+ sh -c "$HWCI_TEST_SCRIPT"
+-- 
+2.17.1
+

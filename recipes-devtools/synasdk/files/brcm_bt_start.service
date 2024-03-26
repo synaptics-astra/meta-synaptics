@@ -1,0 +1,14 @@
+[Unit]
+Description=brcm bt start
+Before=bluetooth.service
+
+[Service]
+Type=oneshot
+ExecStartPre=/bin/sh -c 'rfkill unblock bluetooth'
+ExecStart=/bin/sh -c '/usr/bin/brcm_patchram_plus -d --tosleep=300000 --baudrate 3000000 --use_baudrate_for_download --no2bytes --enable_hci --patchram /lib/firmware/bcm /dev/ttyS2 &'
+Restart=no
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+

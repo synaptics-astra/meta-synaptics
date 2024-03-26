@@ -1,0 +1,58 @@
+From 4d4ddb80d1761f0bed1a949dcaa6981a823a87b5 Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Fri, 24 Feb 2023 10:04:39 +0000
+Subject: [PATCH 165/168] zink: add depth/stencil needs shader swizzle
+ workaround field
+
+---
+ src/gallium/drivers/zink/zink_screen.c | 14 +++++++++++++-
+ src/gallium/drivers/zink/zink_types.h  |  1 +
+ 2 files changed, 14 insertions(+), 1 deletion(-)
+
+diff --git a/src/gallium/drivers/zink/zink_screen.c b/src/gallium/drivers/zink/zink_screen.c
+index 8c27198c599..a7b720a43cf 100644
+--- a/src/gallium/drivers/zink/zink_screen.c
++++ b/src/gallium/drivers/zink/zink_screen.c
+@@ -2430,6 +2430,17 @@ init_driver_workarounds(struct zink_screen *screen)
+       screen->driver_workarounds.needs_sanitised_layer = false;
+       break;
+    }
++   /* these drivers will produce undefined results when using swizzle 1 with combined z/s textures
++    * TODO: use a future device property when available
++    */
++   switch (screen->info.driver_props.driverID) {
++   case VK_DRIVER_ID_IMAGINATION_PROPRIETARY:
++      screen->driver_workarounds.needs_zs_shader_swizzle = true;
++      break;
++   default:
++      screen->driver_workarounds.needs_zs_shader_swizzle = false;
++      break;
++   }
+ 
+    /* When robust contexts are advertised but robustImageAccess2 is not available */
+    screen->driver_workarounds.lower_robustImageAccess2 =
+@@ -2785,7 +2796,8 @@ zink_internal_create_screen(const struct pipe_screen_config *config)
+                           !screen->driver_workarounds.no_linestipple &&
+                           !screen->driver_workarounds.no_linesmooth &&
+                           !screen->driver_workarounds.no_hw_gl_point &&
+-                          !screen->driver_workarounds.lower_robustImageAccess2;
++                          !screen->driver_workarounds.lower_robustImageAccess2 &&
++                          !screen->driver_workarounds.needs_zs_shader_swizzle;
+    if (!screen->optimal_keys)
+       screen->info.have_EXT_graphics_pipeline_library = false;
+ 
+diff --git a/src/gallium/drivers/zink/zink_types.h b/src/gallium/drivers/zink/zink_types.h
+index dbb3322d35f..991100885d1 100644
+--- a/src/gallium/drivers/zink/zink_types.h
++++ b/src/gallium/drivers/zink/zink_types.h
+@@ -1292,6 +1292,7 @@ struct zink_screen {
+       bool no_linesmooth;
+       bool no_hw_gl_point;
+       bool lower_robustImageAccess2;
++      bool needs_zs_shader_swizzle;
+       unsigned z16_unscaled_bias;
+       unsigned z24_unscaled_bias;
+    } driver_workarounds;
+-- 
+2.17.1
+

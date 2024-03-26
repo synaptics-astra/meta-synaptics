@@ -1,0 +1,87 @@
+From 03bbf04236054b312596ecd379f53f58c3a550b9 Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Thu, 5 Jan 2023 16:27:43 -0500
+Subject: [PATCH 134/168] zink: add an extra_data param to zink_shader_compile
+
+this is extra shader key data that can be used in various ways per stage
+and is too large to fit into the shader key
+
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/20598>
+---
+ src/gallium/drivers/zink/zink_compiler.c | 3 ++-
+ src/gallium/drivers/zink/zink_compiler.h | 3 ++-
+ src/gallium/drivers/zink/zink_program.c  | 8 ++++----
+ 3 files changed, 8 insertions(+), 6 deletions(-)
+
+diff --git a/src/gallium/drivers/zink/zink_compiler.c b/src/gallium/drivers/zink/zink_compiler.c
+index 2a2becd9bb5..6b4c0a96bf6 100644
+--- a/src/gallium/drivers/zink/zink_compiler.c
++++ b/src/gallium/drivers/zink/zink_compiler.c
+@@ -2939,7 +2939,8 @@ rewrite_tex_dest(nir_builder *b, nir_tex_instr *tex, nir_variable *var, void *da
+ }
+ 
+ VkShaderModule
+-zink_shader_compile(struct zink_screen *screen, struct zink_shader *zs, nir_shader *base_nir, const struct zink_shader_key *key)
++zink_shader_compile(struct zink_screen *screen, struct zink_shader *zs,
++                    nir_shader *base_nir, const struct zink_shader_key *key, const void *extra_data)
+ {
+    VkShaderModule mod = VK_NULL_HANDLE;
+    struct zink_shader_info *sinfo = &zs->sinfo;
+diff --git a/src/gallium/drivers/zink/zink_compiler.h b/src/gallium/drivers/zink/zink_compiler.h
+index 1572aa3b239..a1c894d3853 100644
+--- a/src/gallium/drivers/zink/zink_compiler.h
++++ b/src/gallium/drivers/zink/zink_compiler.h
+@@ -59,8 +59,9 @@ void
+ zink_screen_init_compiler(struct zink_screen *screen);
+ void
+ zink_compiler_assign_io(struct zink_screen *screen, nir_shader *producer, nir_shader *consumer);
++/* pass very large shader key data with extra_data */
+ VkShaderModule
+-zink_shader_compile(struct zink_screen *screen, struct zink_shader *zs, nir_shader *nir, const struct zink_shader_key *key);
++zink_shader_compile(struct zink_screen *screen, struct zink_shader *zs, nir_shader *nir, const struct zink_shader_key *key, const void *extra_data);
+ VkShaderModule
+ zink_shader_spirv_compile(struct zink_screen *screen, struct zink_shader *zs, struct spirv_shader *spirv);
+ struct zink_shader *
+diff --git a/src/gallium/drivers/zink/zink_program.c b/src/gallium/drivers/zink/zink_program.c
+index 6d8b41b5707..f8b4c190898 100644
+--- a/src/gallium/drivers/zink/zink_program.c
++++ b/src/gallium/drivers/zink/zink_program.c
+@@ -140,7 +140,7 @@ create_shader_module_for_stage(struct zink_context *ctx, struct zink_screen *scr
+       assert(ctx); //TODO async
+       mod = zink_shader_tcs_compile(screen, zs, patch_vertices);
+    } else {
+-      mod = zink_shader_compile(screen, zs, prog->nir[stage], key);
++      mod = zink_shader_compile(screen, zs, prog->nir[stage], key, NULL);
+    }
+    if (!mod) {
+       FREE(zm);
+@@ -240,7 +240,7 @@ create_shader_module_for_stage_optimal(struct zink_context *ctx, struct zink_scr
+       struct zink_tcs_key *tcs = (struct zink_tcs_key*)key;
+       mod = zink_shader_tcs_compile(screen, zs, tcs->patch_vertices);
+    } else {
+-      mod = zink_shader_compile(screen, zs, prog->nir[stage], (struct zink_shader_key*)key);
++      mod = zink_shader_compile(screen, zs, prog->nir[stage], (struct zink_shader_key*)key, NULL);
+    }
+    if (!mod) {
+       FREE(zm);
+@@ -746,7 +746,7 @@ update_cs_shader_module(struct zink_context *ctx, struct zink_compute_program *c
+       if (!zm) {
+          return;
+       }
+-      mod = zink_shader_compile(screen, zs, comp->shader->nir, key);
++      mod = zink_shader_compile(screen, zs, comp->shader->nir, key, NULL);
+       if (!mod) {
+          FREE(zm);
+          return;
+@@ -992,7 +992,7 @@ precompile_compute_job(void *data, void *gdata, int thread_index)
+    comp->shader = zink_shader_create(screen, comp->nir, NULL);
+    comp->curr = comp->module = CALLOC_STRUCT(zink_shader_module);
+    assert(comp->module);
+-   comp->module->shader = zink_shader_compile(screen, comp->shader, comp->shader->nir, NULL);
++   comp->module->shader = zink_shader_compile(screen, comp->shader, comp->shader->nir, NULL, NULL);
+    assert(comp->module->shader);
+    util_dynarray_init(&comp->shader_cache[0], NULL);
+    util_dynarray_init(&comp->shader_cache[1], NULL);
+-- 
+2.17.1
+

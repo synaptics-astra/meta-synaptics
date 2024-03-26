@@ -1,0 +1,12 @@
+pcm.dmx_10 {
+    ipc_key 234885
+    type dmix
+    slave {
+        pcm "hw:0,1"
+        channels 2
+        format S16_LE
+        rate 48000
+        buffer_time 40000
+        period_time 10000
+    }
+}

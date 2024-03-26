@@ -1,0 +1,58 @@
+#!/bin/sh
+#
+### BEGIN INIT INFO
+# Provides: tee_daemon
+# Required-Start: $local_fs $remote_fs
+# Required-Stop: $local_fs $remote_fs
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+### END INIT INFO
+
+export AMP_FW_PATH="/lib/firmware"
+export AMP_TA_PATH="/lib/ta"
+export HDCP_DATA_PATH="@LOCALSTATEDIR@/run/tee/hdcp"
+export OPTARGS="@LOCALSTATEDIR@/lib/tee"
+
+if test -e /etc/default/tee_daemon ; then
+        . /etc/default/tee_daemon
+fi
+
+killproc() {
+        pid=`/bin/pidof $1`
+        [ "$pid" != "" ] && kill $pid
+}
+
+read CMDLINE < /proc/cmdline
+for x in $CMDLINE; do
+        case $x in
+        tee_daemon=false)
+		echo "TEE Supplicant disabled"
+		exit 0;
+                ;;
+        esac
+done
+
+case "$1" in
+  start)
+        . /etc/profile
+        mkdir -p ${HDCP_DATA_PATH}
+        /usr/sbin/tee_daemon -- $OPTARGS &
+  ;;
+
+  stop)
+        echo "Stopping TEE Supplicant"
+        killproc tee_daemon
+  ;;
+
+  restart)
+	$0 stop
+        sleep 1
+        $0 start
+  ;;
+
+  *)
+        echo "usage: $0 { start | stop | restart }"
+  ;;
+esac
+
+exit 0

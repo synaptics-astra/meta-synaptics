@@ -1,0 +1,11 @@
+--- a/Source/WebCore/Modules/mediasource/SourceBuffer.cpp	2019-09-16 23:09:16.750656825 +0800
++++ b/Source/WebCore/Modules/mediasource/SourceBuffer.cpp	2019-09-16 23:09:26.514740475 +0800
+@@ -1166,7 +1166,7 @@
+     if (!maxBufferSizeAudio)
+         maxBufferSizeAudio = 2 * 1024 * 1024;
+     if (!maxBufferSizeVideo)
+-        maxBufferSizeVideo = 15 * 1024 * 1024;
++        maxBufferSizeVideo = SYNA_MEDIASOURCE_VIDEO_BUFFER_SIZE * 1024 * 1024;
+ #endif
+     if (!maxBufferSizeText)
+         maxBufferSizeText = 1 * 1024 * 1024;

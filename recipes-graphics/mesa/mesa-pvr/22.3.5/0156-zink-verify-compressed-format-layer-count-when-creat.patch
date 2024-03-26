@@ -1,0 +1,38 @@
+From 116763f11d5a1415a6c999b5149401aa1e33a39d Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Mon, 13 Feb 2023 16:43:21 -0500
+Subject: [PATCH 156/168] zink: verify compressed format layer count when
+ creating surfaces
+
+this is illegal for some cases, and mesa/st is equipped to handle
+per-layer copying here
+
+fixes #8283
+
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/21292>
+---
+ src/gallium/drivers/zink/zink_surface.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/src/gallium/drivers/zink/zink_surface.c b/src/gallium/drivers/zink/zink_surface.c
+index 0ac38252250..9b4c86e6517 100644
+--- a/src/gallium/drivers/zink/zink_surface.c
++++ b/src/gallium/drivers/zink/zink_surface.c
+@@ -277,6 +277,14 @@ zink_create_surface(struct pipe_context *pctx,
+    if (!res->obj->dt && pres->format != templ->format) {
+       /* mutable not set by default */
+       needs_mutable = !(res->base.b.bind & ZINK_BIND_MUTABLE);
++      /*
++         VUID-VkImageViewCreateInfo-image-07072
++         If image was created with the VK_IMAGE_CREATE_BLOCK_TEXEL_VIEW_COMPATIBLE_BIT flag and
++         format is a non-compressed format, the levelCount and layerCount members of
++         subresourceRange must both be 1
++       */
++      if (needs_mutable && util_format_is_compressed(pres->format) && templ->u.tex.first_layer != templ->u.tex.last_layer)
++         return NULL;
+    }
+ 
+    if (!zink_screen(pctx->screen)->threaded && needs_mutable) {
+-- 
+2.17.1
+

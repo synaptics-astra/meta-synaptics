@@ -1,0 +1,66 @@
+From 8a8a7f37aba0af97035dfba45917350a182ee6b2 Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Mon, 5 Dec 2022 15:25:55 +0100
+Subject: [PATCH 078/168] zink: do not lower gs-intrinsics
+
+We don't use the counters for anything useful, so let's drop this
+lowering pass.
+
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/20135>
+---
+ src/gallium/drivers/zink/nir_to_spirv/nir_to_spirv.c | 8 ++------
+ src/gallium/drivers/zink/zink_compiler.c             | 5 ++---
+ 2 files changed, 4 insertions(+), 9 deletions(-)
+
+diff --git a/src/gallium/drivers/zink/nir_to_spirv/nir_to_spirv.c b/src/gallium/drivers/zink/nir_to_spirv/nir_to_spirv.c
+index c9a496509b8..f385830f5ad 100644
+--- a/src/gallium/drivers/zink/nir_to_spirv/nir_to_spirv.c
++++ b/src/gallium/drivers/zink/nir_to_spirv/nir_to_spirv.c
+@@ -3305,7 +3305,7 @@ emit_intrinsic(struct ntv_context *ctx, nir_intrinsic_instr *intr)
+       emit_load_uint_input(ctx, intr, &ctx->sample_mask_in_var, "gl_SampleMaskIn", SpvBuiltInSampleMask);
+       break;
+ 
+-   case nir_intrinsic_emit_vertex_with_counter:
++   case nir_intrinsic_emit_vertex:
+       /* geometry shader emits copied xfb outputs just prior to EmitVertex(),
+        * since that's the end of the shader
+        */
+@@ -3316,11 +3316,7 @@ emit_intrinsic(struct ntv_context *ctx, nir_intrinsic_instr *intr)
+                                    ctx->nir->info.stage == MESA_SHADER_GEOMETRY && util_bitcount(ctx->nir->info.gs.active_stream_mask) > 1);
+       break;
+ 
+-   case nir_intrinsic_set_vertex_and_primitive_count:
+-      /* do nothing */
+-      break;
+-
+-   case nir_intrinsic_end_primitive_with_counter:
++   case nir_intrinsic_end_primitive:
+       spirv_builder_end_primitive(&ctx->builder, nir_intrinsic_stream_id(intr),
+                                   ctx->nir->info.stage == MESA_SHADER_GEOMETRY && util_bitcount(ctx->nir->info.gs.active_stream_mask) > 1);
+       break;
+diff --git a/src/gallium/drivers/zink/zink_compiler.c b/src/gallium/drivers/zink/zink_compiler.c
+index 249143e2304..1adb464a50d 100644
+--- a/src/gallium/drivers/zink/zink_compiler.c
++++ b/src/gallium/drivers/zink/zink_compiler.c
+@@ -1611,7 +1611,8 @@ clamp_layer_output_instr(nir_builder *b, nir_instr *instr, void *data)
+    switch (instr->type) {
+    case nir_instr_type_intrinsic: {
+       nir_intrinsic_instr *intr = nir_instr_as_intrinsic(instr);
+-      if (intr->intrinsic != nir_intrinsic_emit_vertex_with_counter)
++      if (intr->intrinsic != nir_intrinsic_emit_vertex_with_counter &&
++          intr->intrinsic != nir_intrinsic_emit_vertex)
+          return false;
+       b->cursor = nir_before_instr(instr);
+       clamp_layer_output_emit(b, state);
+@@ -3837,8 +3838,6 @@ zink_shader_finalize(struct pipe_screen *pscreen, void *nirptr)
+    if (!screen->info.feats.features.shaderImageGatherExtended)
+       tex_opts.lower_tg4_offsets = true;
+    NIR_PASS_V(nir, nir_lower_tex, &tex_opts);
+-   if (nir->info.stage == MESA_SHADER_GEOMETRY)
+-      NIR_PASS_V(nir, nir_lower_gs_intrinsics, nir_lower_gs_intrinsics_per_stream);
+    optimize_nir(nir, NULL);
+    nir_shader_gather_info(nir, nir_shader_get_entrypoint(nir));
+    if (screen->driconf.inline_uniforms)
+-- 
+2.17.1
+

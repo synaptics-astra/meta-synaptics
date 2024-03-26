@@ -1,0 +1,104 @@
+From 7ed47b85cb1e372270350df4aa3dc8cbf2c38f82 Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Tue, 27 Sep 2022 09:43:11 +0200
+Subject: [PATCH 072/168] zink: give gs its own shader-key
+
+Line-stipple lowering is going to need some geometry-shader specific
+lowering, so lets give the GS its own shader-key struct.
+
+The GS variant only needs a non-optimal variant, so let's assert that to
+be sure.
+
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/19117>
+---
+ src/gallium/drivers/zink/zink_context.c     |  2 +-
+ src/gallium/drivers/zink/zink_program.h     | 14 ++++++++++++++
+ src/gallium/drivers/zink/zink_shader_keys.h | 17 ++++++++++++++++-
+ 3 files changed, 31 insertions(+), 2 deletions(-)
+
+diff --git a/src/gallium/drivers/zink/zink_context.c b/src/gallium/drivers/zink/zink_context.c
+index 7c8cec2d973..07194fd2965 100644
+--- a/src/gallium/drivers/zink/zink_context.c
++++ b/src/gallium/drivers/zink/zink_context.c
+@@ -4843,7 +4843,7 @@ zink_context_create(struct pipe_screen *pscreen, void *priv, unsigned flags)
+       ctx->gfx_pipeline_state.shader_keys.key[MESA_SHADER_VERTEX].size = sizeof(struct zink_vs_key_base);
+       ctx->gfx_pipeline_state.shader_keys.key[MESA_SHADER_TESS_EVAL].size = sizeof(struct zink_vs_key_base);
+       ctx->gfx_pipeline_state.shader_keys.key[MESA_SHADER_TESS_CTRL].size = sizeof(struct zink_tcs_key);
+-      ctx->gfx_pipeline_state.shader_keys.key[MESA_SHADER_GEOMETRY].size = sizeof(struct zink_vs_key_base);
++      ctx->gfx_pipeline_state.shader_keys.key[MESA_SHADER_GEOMETRY].size = sizeof(struct zink_gs_key);
+       ctx->gfx_pipeline_state.shader_keys.key[MESA_SHADER_FRAGMENT].size = sizeof(struct zink_fs_key);
+    }
+    _mesa_hash_table_init(&ctx->framebuffer_cache, ctx, hash_framebuffer_imageless, equals_framebuffer_imageless);
+diff --git a/src/gallium/drivers/zink/zink_program.h b/src/gallium/drivers/zink/zink_program.h
+index 12658458ef3..ad94b7e7845 100644
+--- a/src/gallium/drivers/zink/zink_program.h
++++ b/src/gallium/drivers/zink/zink_program.h
+@@ -257,6 +257,20 @@ zink_get_fs_key(struct zink_context *ctx)
+           &ctx->gfx_pipeline_state.shader_keys.key[MESA_SHADER_FRAGMENT].key.fs;
+ }
+ 
++static inline struct zink_gs_key *
++zink_set_gs_key(struct zink_context *ctx)
++{
++   ctx->dirty_gfx_stages |= BITFIELD_BIT(MESA_SHADER_GEOMETRY);
++   assert(!zink_screen(ctx->base.screen)->optimal_keys);
++   return &ctx->gfx_pipeline_state.shader_keys.key[MESA_SHADER_GEOMETRY].key.gs;
++}
++
++static inline const struct zink_gs_key *
++zink_get_gs_key(struct zink_context *ctx)
++{
++   return &ctx->gfx_pipeline_state.shader_keys.key[MESA_SHADER_GEOMETRY].key.gs;
++}
++
+ static inline bool
+ zink_set_tcs_key_patches(struct zink_context *ctx, uint8_t patch_vertices)
+ {
+diff --git a/src/gallium/drivers/zink/zink_shader_keys.h b/src/gallium/drivers/zink/zink_shader_keys.h
+index fab6fb403cb..72fee81b641 100644
+--- a/src/gallium/drivers/zink/zink_shader_keys.h
++++ b/src/gallium/drivers/zink/zink_shader_keys.h
+@@ -56,6 +56,13 @@ struct zink_vs_key {
+    unsigned size;
+ };
+ 
++struct zink_gs_key {
++   struct zink_vs_key_base base;
++   uint8_t pad;
++   // not hashed
++   unsigned size;
++};
++
+ struct zink_fs_key {
+    bool point_coord_yinvert : 1;
+    bool samples : 1;
+@@ -82,10 +89,11 @@ struct zink_shader_key_base {
+  */
+ struct zink_shader_key {
+    union {
+-      /* reuse vs key for now with tes/gs since we only use clip_halfz */
++      /* reuse vs key for now with tes since we only use clip_halfz */
+       struct zink_vs_key vs;
+       struct zink_vs_key_base vs_base;
+       struct zink_tcs_key tcs;
++      struct zink_gs_key gs;
+       struct zink_fs_key fs;
+    } key;
+    struct zink_shader_key_base base;
+@@ -140,6 +148,13 @@ zink_vs_key(const struct zink_shader_key *key)
+    return &key->key.vs;
+ }
+ 
++static inline const struct zink_gs_key *
++zink_gs_key(const struct zink_shader_key *key)
++{
++   assert(key);
++   return &key->key.gs;
++}
++
+ static inline const struct zink_tcs_key *
+ zink_tcs_key(const struct zink_shader_key *key)
+ {
+-- 
+2.17.1
+

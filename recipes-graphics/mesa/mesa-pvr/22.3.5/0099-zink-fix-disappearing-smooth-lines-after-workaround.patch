@@ -1,0 +1,33 @@
+From e35947edc37466aa5990e0354bcf8e781c1cf2d2 Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Wed, 4 Jan 2023 10:05:09 +0000
+Subject: [PATCH 099/168] zink: fix disappearing smooth lines after workaround
+
+The passthrough geometery shader was using points for smooth lines.
+This meant the shader would always statically get 1 vertex and never emit a line.
+
+Fixes: 80285db9efe ("zink: lower smooth-lines if not supported")
+Reviewed-by: Erik Faye-Lund <erik.faye-lund@collabora.com>
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/20582>
+---
+ src/gallium/drivers/zink/zink_program.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/gallium/drivers/zink/zink_program.c b/src/gallium/drivers/zink/zink_program.c
+index 60865ca5462..8367a7662da 100644
+--- a/src/gallium/drivers/zink/zink_program.c
++++ b/src/gallium/drivers/zink/zink_program.c
+@@ -1903,8 +1903,8 @@ zink_set_primitive_emulation_keys(struct zink_context *ctx)
+             nir_shader *nir = nir_create_passthrough_gs(
+                &screen->nir_options,
+                ctx->gfx_stages[prev_vertex_stage]->nir,
+-               lower_line_stipple ? SHADER_PRIM_LINE_STRIP :  SHADER_PRIM_POINTS,
+-               lower_line_stipple ? 2 : 1);
++               (lower_line_stipple || lower_line_smooth) ? SHADER_PRIM_LINE_STRIP :  SHADER_PRIM_POINTS,
++               (lower_line_stipple || lower_line_smooth) ? 2 : 1);
+ 
+             struct zink_shader *shader = zink_shader_create(screen, nir, NULL);
+             ctx->gfx_stages[prev_vertex_stage]->non_fs.generated_gs = shader;
+-- 
+2.17.1
+

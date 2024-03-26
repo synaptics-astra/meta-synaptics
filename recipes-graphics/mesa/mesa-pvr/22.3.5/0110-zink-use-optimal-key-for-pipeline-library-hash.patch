@@ -1,0 +1,29 @@
+From f1dac650190095f516086f10ee04a5c4bcf22953 Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Thu, 5 Jan 2023 15:44:37 -0500
+Subject: [PATCH 110/168] zink: use optimal key for pipeline library hash
+
+this doesn't really change anything other than making the set collide less
+
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/20585>
+---
+ src/gallium/drivers/zink/zink_program.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/src/gallium/drivers/zink/zink_program.c b/src/gallium/drivers/zink/zink_program.c
+index d030517d7b1..f10546f48f8 100644
+--- a/src/gallium/drivers/zink/zink_program.c
++++ b/src/gallium/drivers/zink/zink_program.c
+@@ -429,7 +429,8 @@ generate_gfx_program_modules_optimal(struct zink_context *ctx, struct zink_scree
+ static uint32_t
+ hash_pipeline_lib_generated_tcs(const void *key)
+ {
+-   return 1;
++   const struct zink_gfx_library_key *gkey = key;
++   return gkey->optimal_key;
+ }
+ 
+ 
+-- 
+2.17.1
+

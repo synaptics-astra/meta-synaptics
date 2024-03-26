@@ -1,0 +1,18 @@
+[Unit]
+Description=Synaptics TEE supplicant
+Before=amp.service
+
+[Service]
+Type=simple
+Restart=on-failure
+RestartSec=10
+Environment=AMP_FW_PATH=/lib/firmware
+Environment=AMP_TA_PATH=/lib/ta
+Environment=HDCP_DATA_PATH=@LOCALSTATEDIR@/run/tee/hdcp
+ExecStartPre=mkdir -p @LOCALSTATEDIR@/run/tee/hdcp
+ExecStart=/usr/sbin/tee_daemon @LOCALSTATEDIR@/lib/tee
+KillMode=control-group
+SuccessExitStatus=SIGKILL
+
+[Install]
+WantedBy=multi-user.target

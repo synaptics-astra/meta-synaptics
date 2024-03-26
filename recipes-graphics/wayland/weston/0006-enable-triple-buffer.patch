@@ -1,0 +1,51 @@
+diff --git a/libweston/backend-drm/drm-internal.h b/libweston/backend-drm/drm-internal.h
+index 4860088..8bebe16 100644
+--- a/libweston/backend-drm/drm-internal.h
++++ b/libweston/backend-drm/drm-internal.h
+@@ -561,6 +561,9 @@ struct drm_output {
+	 * yet acknowledged completion of state_cur. */
+	struct drm_output_state *state_last;
+
++	/* to differ release to enable triple buffer */
++	struct drm_output_state *state_rel;
++
+	struct drm_fb *dumb[2];
+	pixman_image_t *image[2];
+	int current_image;
+diff --git a/libweston/backend-drm/drm.c b/libweston/backend-drm/drm.c
+index 4278770..2bc2d8a 100644
+--- a/libweston/backend-drm/drm.c
++++ b/libweston/backend-drm/drm.c
+@@ -280,23 +280,30 @@ drm_output_update_complete(struct drm_output *output, uint32_t flags,
+	wl_list_for_each(ps, &output->state_cur->plane_list, link)
+		ps->complete = true;
+
+-	drm_output_state_free(output->state_last);
+-	output->state_last = NULL;
++	if (output->state_rel) {
++		drm_output_state_free(output->state_rel);
++		output->state_rel = NULL;
++	}
++	output->state_rel = output->state_last;
++	output->state_last = NULL;
+
+	if (output->destroy_pending) {
+		output->destroy_pending = false;
+		output->disable_pending = false;
+		output->dpms_off_pending = false;
++		drm_output_state_free(output->state_last);
+		drm_output_destroy(&output->base);
+		return;
+	} else if (output->disable_pending) {
+		output->disable_pending = false;
+		output->dpms_off_pending = false;
++		drm_output_state_free(output->state_last);
+		weston_output_disable(&output->base);
+		return;
+	} else if (output->dpms_off_pending) {
+		struct drm_pending_state *pending = drm_pending_state_alloc(b);
+		output->dpms_off_pending = false;
++		drm_output_state_free(output->state_last);
+		drm_output_get_disable_state(pending, output);
+		drm_pending_state_apply_sync(pending);
+	}

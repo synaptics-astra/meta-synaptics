@@ -1,0 +1,25 @@
+From 85f0cd3140d5ed9307330efaa97b73dac94cb3b3 Mon Sep 17 00:00:00 2001
+From: Xiaomei Shang <xiaomei.shang@synaptics.com>
+Date: Tue, 16 Jan 2024 18:02:25 +0800
+Subject: [PATCH] set PSIMD_SOURCE_DIR
+
+---
+ CMakeLists.txt | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 5e7d127..fe29a5b 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -27,6 +27,8 @@ MACRO(FP16_TARGET_ENABLE_CXX11 target)
+   ENDIF()
+ ENDMACRO()
+ 
++set(PSIMD_SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/../psimd)
++
+ # ---[ Download deps
+ IF(NOT DEFINED PSIMD_SOURCE_DIR)
+   MESSAGE(STATUS "Downloading PSimd to ${CMAKE_BINARY_DIR}/psimd-source (define PSIMD_SOURCE_DIR to avoid it)")
+-- 
+2.17.1
+

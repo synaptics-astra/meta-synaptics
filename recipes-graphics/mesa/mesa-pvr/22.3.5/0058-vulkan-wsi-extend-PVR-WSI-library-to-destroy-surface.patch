@@ -1,0 +1,271 @@
+From b5785681453f05818e2c077a2304427774c82b11 Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Tue, 24 Jan 2023 21:41:48 +0000
+Subject: [PATCH 058/168] vulkan/wsi: extend PVR WSI library to destroy
+ surfaces
+
+Up until now, the Rogue DDK has destroyed surfaces without using the
+library, by simply freeing the surface. Changes to surface allocation
+for Wayland mean that this is no longer possible, as additional
+cleanup is required.
+---
+ src/pvr/wsi/pvr_mesa_wsi_interface.h | 24 ++++++++++++++++++++
+ src/pvr/wsi/pvr_wsi.c                | 34 ++++++++++++++++++++++++++++
+ src/pvr/wsi/pvr_wsi.h                |  5 +++-
+ src/vulkan/wsi/wsi_common.c          | 28 +++++++++++++++++------
+ src/vulkan/wsi/wsi_common.h          |  4 ++++
+ src/vulkan/wsi/wsi_common_private.h  |  2 +-
+ src/vulkan/wsi/wsi_common_wayland.c  |  5 ++--
+ 7 files changed, 90 insertions(+), 12 deletions(-)
+
+diff --git a/src/pvr/wsi/pvr_mesa_wsi_interface.h b/src/pvr/wsi/pvr_mesa_wsi_interface.h
+index b4b1bcb0c9d..46430b56c63 100644
+--- a/src/pvr/wsi/pvr_mesa_wsi_interface.h
++++ b/src/pvr/wsi/pvr_mesa_wsi_interface.h
+@@ -42,6 +42,8 @@ struct pvr_mesa_wsi;
+ /*
+  * Functions defined in Mesa for use by the PowerVR DDK.
+  * All functions have a "pvr_mesa_wsi" prefix.
++ * Since the introduction of version 1 of the interface, the following
++ * functions are now regarded as forming version 0 of the interface.
+  */
+ 
+ void *
+@@ -295,12 +297,34 @@ pvr_mesa_wsi_get_swapchain_counter(struct pvr_mesa_wsi *mwsi,
+                                    VkSurfaceCounterFlagBitsEXT flagBits,
+                                    uint64_t *pValue);
+ 
++/*
++ * The following are available in version 1 of the interface.
++ * Version 1 also supports the version 0 interface.
++ */
++
++uint32_t
++pvr_mesa_wsi_get_version(struct pvr_mesa_wsi *mwsi);
++
++void
++pvr_mesa_wsi_surface_destroy(struct pvr_mesa_wsi *mwsi,
++                             VkSurfaceKHR surface,
++                             const VkAllocationCallbacks *pAllocator);
++
+ /*
+  * Functions defined in the PowerVR DDK for use by Mesa.
+  * All functions have a "pvr_vk_mesa_wsi" prefix.
++ * Since the introduction of version 1 of the interface, the following
++ * function is now regarded as forming version 0 of the interface.
+  */
+ VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL
+ pvr_vk_mesa_wsi_sym_addr(VkPhysicalDevice physicalDevice,
+                          const char *name);
+ 
++/*
++ * The following is available in version 1 of the interface.
++ * Version 1 also supports the version 0 interface.
++ */
++uint32_t
++pvr_vk_mesa_wsi_get_version(VkPhysicalDevice physicalDevice);
++
+ #endif /* PVR_MESA_WSI_INTERFACE_H */
+diff --git a/src/pvr/wsi/pvr_wsi.c b/src/pvr/wsi/pvr_wsi.c
+index f1e4bc594c8..cbf2b7a086f 100644
+--- a/src/pvr/wsi/pvr_wsi.c
++++ b/src/pvr/wsi/pvr_wsi.c
+@@ -27,6 +27,16 @@
+ #include "pvr_wsi.h"
+ #include "pvr_mesa_wsi_interface.h"
+ 
++static inline uint32_t
++pvr_vk_wsi_get_version(struct pvr_mesa_wsi *mwsi)
++{
++   JUMP_DDK(mwsi, pvr_vk_mesa_wsi_get_version,
++                  mwsi->physicalDevice);
++
++   return 0;
++}
++
++
+ VkResult
+ pvr_mesa_wsi_init(struct pvr_mesa_wsi **pmwsi,
+                   VkPhysicalDevice physicalDevice,
+@@ -47,6 +57,12 @@ pvr_mesa_wsi_init(struct pvr_mesa_wsi **pmwsi,
+    mwsi->symtab.pvr_vk_mesa_wsi_sym_addr = pvr_vk_mesa_wsi_sym_addr;
+    mwsi->physicalDevice = physicalDevice;
+ 
++   mwsi->pvr_vk_wsi_version = pvr_vk_wsi_get_version(mwsi);
++   if (mwsi->pvr_vk_wsi_version < 1) {
++      vk_free(alloc, mwsi);
++      return VK_ERROR_FEATURE_NOT_PRESENT;
++   }
++
+    result = wsi_device_init2(&mwsi->wsi,
+                              physicalDevice,
+                              pvr_vk_mesa_wsi_sym_addr,
+@@ -227,6 +243,20 @@ pvr_mesa_wsi_common_get_present_rectangles(struct pvr_mesa_wsi *mwsi,
+                                             pRects);
+ }
+ 
++uint32_t
++pvr_mesa_wsi_get_version(UNUSED struct pvr_mesa_wsi *mwsi)
++{
++   return 1;
++}
++
++void
++pvr_mesa_wsi_surface_destroy(UNUSED struct pvr_mesa_wsi *mwsi,
++			     VkSurfaceKHR surface,
++			     const VkAllocationCallbacks *pAllocator)
++{
++   wsi_surface_destroy(surface, pAllocator);
++}
++
+ /*
+  * The mwsi parameter is currently unused. Note that it is invalid for
+  * pvr_mesa_wsi_init, which is responsible for allocating it.
+@@ -322,6 +352,10 @@ pvr_mesa_wsi_sym_addr(UNUSED struct pvr_mesa_wsi *mwsi, const char *name)
+             pvr_mesa_wsi_register_display_event },
+       { "pvr_mesa_wsi_get_swapchain_counter",
+             pvr_mesa_wsi_get_swapchain_counter },
++      { "pvr_mesa_wsi_get_version",
++            pvr_mesa_wsi_get_version },
++      { "pvr_mesa_wsi_surface_destroy",
++            pvr_mesa_wsi_surface_destroy },
+    };
+    unsigned i;
+ 
+diff --git a/src/pvr/wsi/pvr_wsi.h b/src/pvr/wsi/pvr_wsi.h
+index 142358db3de..0c734fdb1f5 100644
+--- a/src/pvr/wsi/pvr_wsi.h
++++ b/src/pvr/wsi/pvr_wsi.h
+@@ -37,7 +37,7 @@
+ #define MAKE_STRING(x) _MAKE_STRING(x)
+ 
+ #define LOOKUP_DDK(mwsi, sym) \
+-   mwsi->symtab.pvr_vk_mesa_wsi_sym_addr(MAKE_STRING(sym))
++   mwsi->symtab.pvr_vk_mesa_wsi_sym_addr(mwsi->physicalDevice, MAKE_STRING(sym))
+ 
+ #define JUMP_DDK(mwsi, sym, ...)                          \
+    do {                                                   \
+@@ -61,6 +61,8 @@ struct pvr_vk_mesa_wsi_sym_tab
+ {
+    PFN_vkVoidFunction (VKAPI_PTR *pvr_vk_mesa_wsi_sym_addr)
+       (VkPhysicalDevice physicalDevice, const char *);
++
++   uint32_t (*pvr_vk_mesa_wsi_get_version)(VkPhysicalDevice physicalDevice);
+ };
+ 
+ struct pvr_mesa_wsi
+@@ -68,6 +70,7 @@ struct pvr_mesa_wsi
+    struct wsi_device wsi;
+    struct pvr_vk_mesa_wsi_sym_tab symtab;
+    VkPhysicalDevice physicalDevice;
++   uint32_t pvr_vk_wsi_version;
+ };
+ 
+ static inline struct pvr_mesa_wsi *pvr_mesa_wsi(struct wsi_device *wsi_ptr)
+diff --git a/src/vulkan/wsi/wsi_common.c b/src/vulkan/wsi/wsi_common.c
+index 389117ceb2e..8067781c459 100644
+--- a/src/vulkan/wsi/wsi_common.c
++++ b/src/vulkan/wsi/wsi_common.c
+@@ -291,12 +291,10 @@ wsi_device_finish(struct wsi_device *wsi,
+ #endif
+ }
+ 
+-VKAPI_ATTR void VKAPI_CALL
+-wsi_DestroySurfaceKHR(VkInstance _instance,
+-                      VkSurfaceKHR _surface,
+-                      const VkAllocationCallbacks *pAllocator)
++void
++wsi_surface_destroy(VkSurfaceKHR _surface,
++                    const VkAllocationCallbacks *pAllocator)
+ {
+-   VK_FROM_HANDLE(vk_instance, instance, _instance);
+    ICD_FROM_HANDLE(VkIcdSurfaceBase, surface, _surface);
+ 
+    if (!surface)
+@@ -304,12 +302,28 @@ wsi_DestroySurfaceKHR(VkInstance _instance,
+ 
+ #ifdef VK_USE_PLATFORM_WAYLAND_KHR
+    if (surface->platform == VK_ICD_WSI_PLATFORM_WAYLAND) {
+-      wsi_wl_surface_destroy(surface, _instance, pAllocator);
++      wsi_wl_surface_destroy(surface, pAllocator);
+       return;
+    }
+ #endif
+ 
+-   vk_free2(&instance->alloc, pAllocator, surface);
++   vk_free(pAllocator, surface);
++}
++
++VKAPI_ATTR void VKAPI_CALL
++wsi_DestroySurfaceKHR(VkInstance _instance,
++                      VkSurfaceKHR _surface,
++                      const VkAllocationCallbacks *pAllocator)
++{
++   VK_FROM_HANDLE(vk_instance, instance, _instance);
++   const VkAllocationCallbacks *allocator;
++
++   if (pAllocator)
++     allocator = pAllocator;
++   else
++     allocator = &instance->alloc;
++
++   wsi_surface_destroy(_surface, allocator);
+ }
+ 
+ void
+diff --git a/src/vulkan/wsi/wsi_common.h b/src/vulkan/wsi/wsi_common.h
+index aec1021113e..3a47be66859 100644
+--- a/src/vulkan/wsi/wsi_common.h
++++ b/src/vulkan/wsi/wsi_common.h
+@@ -393,6 +393,10 @@ wsi_common_bind_swapchain_image(const struct wsi_device *wsi,
+                                 VkSwapchainKHR _swapchain,
+                                 uint32_t image_idx);
+ 
++void
++wsi_surface_destroy(VkSurfaceKHR _surface,
++                    const VkAllocationCallbacks *pAllocator);
++
+ #ifdef __cplusplus
+ }
+ #endif
+diff --git a/src/vulkan/wsi/wsi_common_private.h b/src/vulkan/wsi/wsi_common_private.h
+index 868fdf968e4..631ea93e3d6 100644
+--- a/src/vulkan/wsi/wsi_common_private.h
++++ b/src/vulkan/wsi/wsi_common_private.h
+@@ -171,7 +171,7 @@ bool
+ wsi_device_matches_drm_fd(const struct wsi_device *wsi, int drm_fd);
+ 
+ void
+-wsi_wl_surface_destroy(VkIcdSurfaceBase *icd_surface, VkInstance _instance,
++wsi_wl_surface_destroy(VkIcdSurfaceBase *icd_surface,
+                        const VkAllocationCallbacks *pAllocator);
+ 
+ VkResult
+diff --git a/src/vulkan/wsi/wsi_common_wayland.c b/src/vulkan/wsi/wsi_common_wayland.c
+index bffc52da13f..da3575fc584 100644
+--- a/src/vulkan/wsi/wsi_common_wayland.c
++++ b/src/vulkan/wsi/wsi_common_wayland.c
+@@ -1273,10 +1273,9 @@ wsi_wl_surface_get_present_rectangles(VkIcdSurfaceBase *surface,
+ }
+ 
+ void
+-wsi_wl_surface_destroy(VkIcdSurfaceBase *icd_surface, VkInstance _instance,
++wsi_wl_surface_destroy(VkIcdSurfaceBase *icd_surface,
+                        const VkAllocationCallbacks *pAllocator)
+ {
+-   VK_FROM_HANDLE(vk_instance, instance, _instance);
+    struct wsi_wl_surface *wsi_wl_surface =
+       wl_container_of((VkIcdSurfaceWayland *)icd_surface, wsi_wl_surface, base);
+ 
+@@ -1292,7 +1291,7 @@ wsi_wl_surface_destroy(VkIcdSurfaceBase *icd_surface, VkInstance _instance,
+       dmabuf_feedback_fini(&wsi_wl_surface->pending_dmabuf_feedback);
+    }
+ 
+-   vk_free2(&instance->alloc, pAllocator, wsi_wl_surface);
++   vk_free(pAllocator, wsi_wl_surface);
+ }
+ 
+ static struct wsi_wl_format *
+-- 
+2.17.1
+

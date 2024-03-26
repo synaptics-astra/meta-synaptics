@@ -1,0 +1,7 @@
+{
+    "model": "/usr/share/synap/models/image_classification/imagenet/model/mobilenet_v2_1.0_224_quant/model.synap",
+    "meta": "/usr/share/synap/models/image_classification/imagenet/info.json",
+    "count": 1,
+    "confidence": 12.0,
+    "postprocmode": "classifier"
+}

@@ -1,0 +1,5 @@
+Name: TensorFlow lite
+Description: TensorFlow Lite shared library
+Version: @@PV@@
+Requires:
+Libs: -ltensorflow-lite -lrt

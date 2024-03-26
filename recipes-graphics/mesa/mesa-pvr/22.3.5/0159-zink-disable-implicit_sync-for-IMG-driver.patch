@@ -1,0 +1,26 @@
+From 39bf13e1df264c3c5af6055adae2c3e8e783d02c Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Thu, 16 Feb 2023 09:46:15 +0000
+Subject: [PATCH 159/168] zink: disable implicit_sync for IMG driver
+
+IMG proprietary driver also uses mesa WSI and so
+does not need implicit sync.
+---
+ src/gallium/drivers/zink/zink_screen.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/src/gallium/drivers/zink/zink_screen.c b/src/gallium/drivers/zink/zink_screen.c
+index 136dc401874..8c27198c599 100644
+--- a/src/gallium/drivers/zink/zink_screen.c
++++ b/src/gallium/drivers/zink/zink_screen.c
+@@ -2305,6 +2305,7 @@ init_driver_workarounds(struct zink_screen *screen)
+    case VK_DRIVER_ID_MESA_V3DV:
+    case VK_DRIVER_ID_MESA_PANVK:
+    case VK_DRIVER_ID_MESA_VENUS:
++   case VK_DRIVER_ID_IMAGINATION_PROPRIETARY:
+       screen->driver_workarounds.implicit_sync = false;
+       break;
+    default:
+-- 
+2.17.1
+

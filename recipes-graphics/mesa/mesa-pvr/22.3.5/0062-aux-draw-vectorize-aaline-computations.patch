@@ -1,0 +1,37 @@
+From fdad4f15f39f0f202c956dae599397e7c0b20e43 Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Mon, 21 Nov 2022 13:53:04 +0100
+Subject: [PATCH 062/168] aux/draw: vectorize aaline computations
+
+This makes it a bit more similar to the TGSI version, which makes
+modifying them easier to review.
+
+Reviewed-by: Roland Scheidegger <sroland@vmware.com>
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/19899>
+---
+ src/gallium/auxiliary/nir/nir_draw_helpers.c | 8 +++-----
+ 1 file changed, 3 insertions(+), 5 deletions(-)
+
+diff --git a/src/gallium/auxiliary/nir/nir_draw_helpers.c b/src/gallium/auxiliary/nir/nir_draw_helpers.c
+index daa1fcb260b..098b83b194b 100644
+--- a/src/gallium/auxiliary/nir/nir_draw_helpers.c
++++ b/src/gallium/auxiliary/nir/nir_draw_helpers.c
+@@ -174,12 +174,10 @@ nir_lower_aaline_block(nir_block *block,
+       nir_ssa_def *out_input = intrin->src[1].ssa;
+       b->cursor = nir_before_instr(instr);
+       nir_ssa_def *lw = nir_load_var(b, state->line_width_input);
+-      nir_ssa_def *tmp = nir_fsat(b, nir_fadd(b, nir_channel(b, lw, 1),
+-                                              nir_fneg(b, nir_fabs(b, nir_channel(b, lw, 0)))));
+-      nir_ssa_def *tmp1 = nir_fsat(b, nir_fadd(b, nir_channel(b, lw, 3),
+-                                               nir_fneg(b, nir_fabs(b, nir_channel(b, lw, 2)))));
++      nir_ssa_def *tmp = nir_fsat(b, nir_fadd(b, nir_channels(b, lw, 0xa),
++                                              nir_fneg(b, nir_fabs(b, nir_channels(b, lw, 0x5)))));
+ 
+-      tmp = nir_fmul(b, tmp, tmp1);
++      tmp = nir_fmul(b, nir_channel(b, tmp, 0), nir_channel(b, tmp, 1));
+       tmp = nir_fmul(b, nir_channel(b, out_input, 3), tmp);
+ 
+       nir_ssa_def *out = nir_vec4(b, nir_channel(b, out_input, 0),
+-- 
+2.17.1
+

@@ -1,0 +1,32 @@
+From da7688db1d9ceecdefd2588a78c2eb3290ea61a0 Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Fri, 6 Jan 2023 14:40:11 -0500
+Subject: [PATCH 102/168] zink: re-clamp dynamic render area when doing
+ swapchain fixups
+
+this may catch another corner case if a late fixup changes fb size
+
+fixes (lavapipe):
+dEQP-EGL.functional.swap_buffers_with_damage.resize_before_swap.clear_render
+
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/20584>
+---
+ src/gallium/drivers/zink/zink_render_pass.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/src/gallium/drivers/zink/zink_render_pass.c b/src/gallium/drivers/zink/zink_render_pass.c
+index 8678f227741..45100b828d6 100644
+--- a/src/gallium/drivers/zink/zink_render_pass.c
++++ b/src/gallium/drivers/zink/zink_render_pass.c
+@@ -823,6 +823,8 @@ zink_render_fixup_swapchain(struct zink_context *ctx)
+       unsigned old_h = ctx->fb_state.height;
+       ctx->fb_state.width = ctx->swapchain_size.width;
+       ctx->fb_state.height = ctx->swapchain_size.height;
++      ctx->dynamic_fb.info.renderArea.extent.width = MIN2(ctx->dynamic_fb.info.renderArea.extent.width, ctx->fb_state.width);
++      ctx->dynamic_fb.info.renderArea.extent.height = MIN2(ctx->dynamic_fb.info.renderArea.extent.height, ctx->fb_state.height);
+       zink_kopper_fixup_depth_buffer(ctx);
+       if (ctx->fb_state.width != old_w || ctx->fb_state.height != old_h)
+          ctx->scissor_changed = true;
+-- 
+2.17.1
+

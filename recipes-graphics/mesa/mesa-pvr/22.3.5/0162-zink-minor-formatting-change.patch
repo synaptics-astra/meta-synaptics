@@ -1,0 +1,27 @@
+From e588b6effafea6be2f707f4a6d14293a033858cf Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Tue, 28 Feb 2023 10:09:46 +0000
+Subject: [PATCH 162/168] zink: minor formatting change
+
+that line was becoming too long.
+---
+ src/gallium/drivers/zink/zink_program.h | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/src/gallium/drivers/zink/zink_program.h b/src/gallium/drivers/zink/zink_program.h
+index b92d452fb2c..cd8c04c99ec 100644
+--- a/src/gallium/drivers/zink/zink_program.h
++++ b/src/gallium/drivers/zink/zink_program.h
+@@ -359,7 +359,8 @@ static inline void
+ zink_set_fs_shadow_needs_shader_swizzle_key(struct zink_context *ctx, bool swizzle_update)
+ {
+    const struct zink_fs_key_base *fs = zink_get_fs_base_key(ctx);
+-   bool enable = ctx->gfx_stages[MESA_SHADER_FRAGMENT] && (ctx->gfx_stages[MESA_SHADER_FRAGMENT]->fs.legacy_shadow_mask & ctx->di.shadow[MESA_SHADER_FRAGMENT].mask) > 0;
++   bool enable = ctx->gfx_stages[MESA_SHADER_FRAGMENT] &&
++                 (ctx->gfx_stages[MESA_SHADER_FRAGMENT]->fs.legacy_shadow_mask & ctx->di.shadow[MESA_SHADER_FRAGMENT].mask) > 0;
+    if (enable != fs->shadow_needs_shader_swizzle || (enable && swizzle_update))
+       zink_set_fs_base_key(ctx)->shadow_needs_shader_swizzle = enable;
+ }
+-- 
+2.17.1
+

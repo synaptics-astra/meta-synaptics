@@ -1,0 +1,288 @@
+From 2851ea6c01e58814aed0c8cff53c66911db0b04b Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Tue, 27 Sep 2022 13:23:04 +0200
+Subject: [PATCH 075/168] zink: lower line stipple
+
+This lowers line-stippling to a combination of geometry and fragment
+shaders:
+
+- The geometry shader computes the length of each line-segment, and
+  outputs a varying that produces the stipple position.
+- The fragment shader looks up the stipple position in the
+  stipple-pattern once per sample, and updates the sample mask
+  accordingly.
+
+In case there's no geometry shader in place, we create a new
+pass-through shader.
+
+We should probably not declare the the push-constants in the pipeline
+layout unless they're actually needed. But we already do this
+unconditionally for the vertex shader and tesselation push-constants, so
+let's do it unconditionally for these as well for now.
+
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/19117>
+---
+ src/gallium/drivers/zink/zink_compiler.c    | 18 +++++++
+ src/gallium/drivers/zink/zink_draw.cpp      | 30 +++++++++++
+ src/gallium/drivers/zink/zink_program.c     | 59 ++++++++++++++++++++-
+ src/gallium/drivers/zink/zink_program.h     |  3 ++
+ src/gallium/drivers/zink/zink_shader_keys.h |  4 +-
+ src/gallium/drivers/zink/zink_state.c       |  5 +-
+ 6 files changed, 115 insertions(+), 4 deletions(-)
+
+diff --git a/src/gallium/drivers/zink/zink_compiler.c b/src/gallium/drivers/zink/zink_compiler.c
+index af5a9d6abbf..249143e2304 100644
+--- a/src/gallium/drivers/zink/zink_compiler.c
++++ b/src/gallium/drivers/zink/zink_compiler.c
+@@ -2461,6 +2461,14 @@ zink_shader_compile(struct zink_screen *screen, struct zink_shader *zs, nir_shad
+             break;
+          }
+ 
++         case MESA_SHADER_GEOMETRY:
++            if (zink_gs_key(key)->lower_line_stipple) {
++               NIR_PASS_V(nir, lower_line_stipple_gs);
++               NIR_PASS_V(nir, nir_lower_var_copies);
++               need_optimize = true;
++            }
++            break;
++
+          default:
+             break;
+          }
+@@ -2483,6 +2491,8 @@ zink_shader_compile(struct zink_screen *screen, struct zink_shader *zs, nir_shad
+          }
+          break;
+       case MESA_SHADER_FRAGMENT:
++         if (zink_fs_key(key)->lower_line_stipple)
++            NIR_PASS_V(nir, lower_line_stipple_fs);
+          if (!zink_fs_key(key)->samples &&
+             nir->info.outputs_written & BITFIELD64_BIT(FRAG_RESULT_SAMPLE_MASK)) {
+             /* VK will always use gl_SampleMask[] values even if sample count is 0,
+@@ -3868,6 +3878,8 @@ zink_shader_free(struct zink_screen *screen, struct zink_shader *shader)
+       /* only remove generated tcs during parent tes destruction */
+       if (stage == MESA_SHADER_TESS_EVAL && shader->non_fs.generated_tcs)
+          prog->shaders[MESA_SHADER_TESS_CTRL] = NULL;
++      if (stage != MESA_SHADER_FRAGMENT && shader->non_fs.generated_gs)
++         prog->shaders[MESA_SHADER_GEOMETRY] = NULL;
+       zink_gfx_program_reference(screen, &prog, NULL);
+    }
+    if (shader->nir->info.stage == MESA_SHADER_TESS_EVAL &&
+@@ -3876,6 +3888,12 @@ zink_shader_free(struct zink_screen *screen, struct zink_shader *shader)
+       zink_shader_free(screen, shader->non_fs.generated_tcs);
+       shader->non_fs.generated_tcs = NULL;
+    }
++   if (shader->nir->info.stage != MESA_SHADER_FRAGMENT &&
++       shader->non_fs.generated_gs) {
++      /* automatically destroy generated gs shaders when owner is destroyed */
++      zink_shader_free(screen, shader->non_fs.generated_gs);
++      shader->non_fs.generated_gs = NULL;
++   }
+    _mesa_set_destroy(shader->programs, NULL);
+    ralloc_free(shader->nir);
+    ralloc_free(shader->spirv);
+diff --git a/src/gallium/drivers/zink/zink_draw.cpp b/src/gallium/drivers/zink/zink_draw.cpp
+index 3b057b5c9cd..f1c70aa906b 100644
+--- a/src/gallium/drivers/zink/zink_draw.cpp
++++ b/src/gallium/drivers/zink/zink_draw.cpp
+@@ -525,6 +525,7 @@ zink_draw(struct pipe_context *pctx,
+       zink_set_last_vertex_key(ctx)->push_drawid = drawid_broken;
+ 
+    bool rast_prim_changed = false;
++   bool lines_changed = false;
+    bool rast_state_changed = ctx->rast_state_changed;
+    if (mode_changed || ctx->gfx_pipeline_state.modules_changed ||
+        rast_state_changed) {
+@@ -534,6 +535,10 @@ zink_draw(struct pipe_context *pctx,
+             (ctx->gfx_pipeline_state.rast_prim == PIPE_PRIM_POINTS) !=
+             (rast_prim == PIPE_PRIM_POINTS);
+ 
++         lines_changed =
++            (ctx->gfx_pipeline_state.rast_prim == PIPE_PRIM_LINES) !=
++            (rast_prim == PIPE_PRIM_LINES);
++
+          ctx->gfx_pipeline_state.rast_prim = rast_prim;
+          rast_prim_changed = true;
+ 
+@@ -543,6 +548,10 @@ zink_draw(struct pipe_context *pctx,
+    }
+    ctx->gfx_pipeline_state.gfx_prim_mode = mode;
+ 
++   if (lines_changed || rast_state_changed ||
++       ctx->gfx_pipeline_state.modules_changed)
++      zink_set_line_stipple_keys(ctx);
++
+    if (index_size) {
+       const VkIndexType index_type[3] = {
+          VK_INDEX_TYPE_UINT8_EXT,
+@@ -792,6 +801,27 @@ zink_draw(struct pipe_context *pctx,
+                          offsetof(struct zink_gfx_push_constant, default_inner_level), sizeof(float) * 6,
+                          &ctx->tess_levels[0]);
+    }
++   if (zink_get_fs_key(ctx)->lower_line_stipple) {
++      assert(zink_get_gs_key(ctx)->lower_line_stipple);
++
++      float viewport_scale[2] = {
++         ctx->vp_state.viewport_states[0].scale[0],
++         ctx->vp_state.viewport_states[0].scale[1]
++      };
++      VKCTX(CmdPushConstants)(batch->state->cmdbuf,
++                              ctx->curr_program->base.layout,
++                              VK_SHADER_STAGE_ALL_GRAPHICS,
++                              offsetof(struct zink_gfx_push_constant, viewport_scale),
++                              sizeof(float) * 2, &viewport_scale);
++
++      uint32_t stipple = ctx->rast_state->base.line_stipple_pattern;
++      stipple |= ctx->rast_state->base.line_stipple_factor << 16;
++      VKCTX(CmdPushConstants)(batch->state->cmdbuf,
++                              ctx->curr_program->base.layout,
++                              VK_SHADER_STAGE_ALL_GRAPHICS,
++                              offsetof(struct zink_gfx_push_constant, line_stipple_pattern),
++                              sizeof(uint32_t), &stipple);
++   }
+ 
+    if (have_streamout) {
+       for (unsigned i = 0; i < ctx->num_so_targets; i++) {
+diff --git a/src/gallium/drivers/zink/zink_program.c b/src/gallium/drivers/zink/zink_program.c
+index 615ffbf8205..7812e81e30e 100644
+--- a/src/gallium/drivers/zink/zink_program.c
++++ b/src/gallium/drivers/zink/zink_program.c
+@@ -38,6 +38,7 @@
+ #include "util/u_memory.h"
+ #include "util/u_prim.h"
+ #include "nir_serialize.h"
++#include "nir/nir_draw_helpers.h"
+ 
+ /* for pipeline cache */
+ #define XXH_INLINE_ALL
+@@ -1306,7 +1307,7 @@ zink_get_compute_pipeline(struct zink_screen *screen,
+    return state->pipeline;
+ }
+ 
+-ALWAYS_INLINE static void
++static void
+ bind_gfx_stage(struct zink_context *ctx, gl_shader_stage stage, struct zink_shader *shader)
+ {
+    if (shader && shader->nir->info.num_inlinable_uniforms)
+@@ -1314,8 +1315,18 @@ bind_gfx_stage(struct zink_context *ctx, gl_shader_stage stage, struct zink_shad
+    else
+       ctx->shader_has_inlinable_uniforms_mask &= ~(1 << stage);
+ 
+-   if (ctx->gfx_stages[stage])
++   if (ctx->gfx_stages[stage]) {
+       ctx->gfx_hash ^= ctx->gfx_stages[stage]->hash;
++
++      /* unbind the generated GS */
++      if (stage != MESA_SHADER_FRAGMENT &&
++          ctx->gfx_stages[stage]->non_fs.generated_gs &&
++          ctx->gfx_stages[MESA_SHADER_GEOMETRY] ==
++          ctx->gfx_stages[stage]->non_fs.generated_gs) {
++         assert(stage != MESA_SHADER_GEOMETRY); /* let's not keep recursing! */
++         bind_gfx_stage(ctx, MESA_SHADER_GEOMETRY, NULL);
++      }
++   }
+    ctx->gfx_stages[stage] = shader;
+    ctx->gfx_dirty = ctx->gfx_stages[MESA_SHADER_FRAGMENT] && ctx->gfx_stages[MESA_SHADER_VERTEX];
+    ctx->gfx_pipeline_state.modules_changed = true;
+@@ -1851,3 +1862,47 @@ zink_driver_thread_add_job(struct pipe_screen *pscreen, void *data,
+    struct zink_screen *screen = zink_screen(pscreen);
+    util_queue_add_job(&screen->cache_get_thread, data, fence, execute, cleanup, job_size);
+ }
++
++void
++zink_set_line_stipple_keys(struct zink_context *ctx)
++{
++   struct zink_screen *screen = zink_screen(ctx->base.screen);
++   bool lower_line_stipple = ctx->gfx_pipeline_state.rast_prim == PIPE_PRIM_LINES &&
++                             screen->driver_workarounds.no_linestipple &&
++                             ctx->rast_state->base.line_stipple_enable &&
++                             !ctx->num_so_targets;
++
++   if (zink_get_fs_key(ctx)->lower_line_stipple != lower_line_stipple) {
++      assert(zink_get_gs_key(ctx)->lower_line_stipple ==
++             zink_get_fs_key(ctx)->lower_line_stipple);
++      zink_set_fs_key(ctx)->lower_line_stipple = lower_line_stipple;
++      zink_set_gs_key(ctx)->lower_line_stipple = lower_line_stipple;
++   }
++
++   if (lower_line_stipple) {
++      enum pipe_shader_type prev_vertex_stage =
++         ctx->gfx_stages[MESA_SHADER_TESS_EVAL] ?
++            MESA_SHADER_TESS_EVAL : MESA_SHADER_VERTEX;
++
++      if (!ctx->gfx_stages[MESA_SHADER_GEOMETRY]) {
++         assert(!screen->optimal_keys);
++
++         if (!ctx->gfx_stages[prev_vertex_stage]->non_fs.generated_gs) {
++            nir_shader *nir = nir_create_passthrough_gs(
++               &screen->nir_options,
++               ctx->gfx_stages[prev_vertex_stage]->nir,
++               SHADER_PRIM_LINE_STRIP, 2);
++            NIR_PASS_V(nir, nir_lower_gs_intrinsics, nir_lower_gs_intrinsics_per_stream);
++
++            struct zink_shader *shader = zink_shader_create(screen, nir, NULL);
++            ctx->gfx_stages[prev_vertex_stage]->non_fs.generated_gs = shader;
++            shader->non_fs.is_generated = true;
++         }
++
++         bind_gfx_stage(ctx, MESA_SHADER_GEOMETRY,
++                        ctx->gfx_stages[prev_vertex_stage]->non_fs.generated_gs);
++      }
++   } else if (ctx->gfx_stages[MESA_SHADER_GEOMETRY] &&
++              ctx->gfx_stages[MESA_SHADER_GEOMETRY]->non_fs.is_generated)
++         bind_gfx_stage(ctx, MESA_SHADER_GEOMETRY, NULL);
++}
+diff --git a/src/gallium/drivers/zink/zink_program.h b/src/gallium/drivers/zink/zink_program.h
+index ad94b7e7845..75a855936ac 100644
+--- a/src/gallium/drivers/zink/zink_program.h
++++ b/src/gallium/drivers/zink/zink_program.h
+@@ -340,6 +340,9 @@ zink_set_fs_point_coord_key(struct zink_context *ctx)
+    }
+ }
+ 
++void
++zink_set_line_stipple_keys(struct zink_context *ctx);
++
+ static inline const struct zink_shader_key_base *
+ zink_get_shader_key_base(struct zink_context *ctx, gl_shader_stage pstage)
+ {
+diff --git a/src/gallium/drivers/zink/zink_shader_keys.h b/src/gallium/drivers/zink/zink_shader_keys.h
+index 72fee81b641..013892bff2d 100644
+--- a/src/gallium/drivers/zink/zink_shader_keys.h
++++ b/src/gallium/drivers/zink/zink_shader_keys.h
+@@ -59,6 +59,7 @@ struct zink_vs_key {
+ struct zink_gs_key {
+    struct zink_vs_key_base base;
+    uint8_t pad;
++   bool lower_line_stipple : 1;
+    // not hashed
+    unsigned size;
+ };
+@@ -69,7 +70,8 @@ struct zink_fs_key {
+    bool force_dual_color_blend : 1;
+    bool force_persample_interp : 1;
+    bool fbfetch_ms : 1;
+-   uint8_t pad : 3;
++   bool lower_line_stipple : 1;
++   uint8_t pad : 2;
+    uint8_t coord_replace_bits;
+ };
+ 
+diff --git a/src/gallium/drivers/zink/zink_state.c b/src/gallium/drivers/zink/zink_state.c
+index c38a06e3032..eba2cc8dfb8 100644
+--- a/src/gallium/drivers/zink/zink_state.c
++++ b/src/gallium/drivers/zink/zink_state.c
+@@ -564,7 +564,10 @@ zink_create_rasterizer_state(struct pipe_context *pctx,
+ 
+    state->base = *rs_state;
+    state->base.line_stipple_factor++;
+-   state->hw_state.line_stipple_enable = rs_state->line_stipple_enable;
++
++   state->hw_state.line_stipple_enable =
++      rs_state->line_stipple_enable &&
++      !screen->driver_workarounds.no_linestipple;
+ 
+    assert(rs_state->depth_clip_far == rs_state->depth_clip_near);
+    state->hw_state.depth_clip = rs_state->depth_clip_near;
+-- 
+2.17.1
+

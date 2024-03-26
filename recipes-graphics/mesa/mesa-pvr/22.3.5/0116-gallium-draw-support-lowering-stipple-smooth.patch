@@ -1,0 +1,143 @@
+From 1bfb157b75ce37743e24db7b29759101d503107c Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Fri, 2 Dec 2022 13:33:48 +0100
+Subject: [PATCH 116/168] gallium/draw: support lowering stipple + smooth
+
+When computing line smoothing, we can also do something similar to
+compute the line stippling. This can be useful for some drivers, who
+can't easily split the lines before rasterizing them.
+
+This does lead to slightly inaccurate stippling, because the
+line-smoothing extends the line-length by a small amount. That leads to
+the line-stippling pattern being over-stretched over the line-segment by
+a fraction of a pixel in lenght. For short lines, this can be quite a
+lot of error.
+
+Reviewed-by: Soroush Kashani <soroush.kashani@imgtec.com>
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/20134>
+---
+ src/gallium/auxiliary/draw/draw_pipe_aaline.c |  2 +-
+ src/gallium/auxiliary/nir/nir_draw_helpers.c  | 48 +++++++++++++++++--
+ src/gallium/auxiliary/nir/nir_draw_helpers.h  |  4 +-
+ src/gallium/drivers/zink/zink_compiler.c      |  2 +-
+ 4 files changed, 50 insertions(+), 6 deletions(-)
+
+diff --git a/src/gallium/auxiliary/draw/draw_pipe_aaline.c b/src/gallium/auxiliary/draw/draw_pipe_aaline.c
+index 464f9c3dd96..d2bc475b243 100644
+--- a/src/gallium/auxiliary/draw/draw_pipe_aaline.c
++++ b/src/gallium/auxiliary/draw/draw_pipe_aaline.c
+@@ -361,7 +361,7 @@ generate_aaline_fs_nir(struct aaline_stage *aaline)
+    if (!aaline_fs.ir.nir)
+       return FALSE;
+ 
+-   nir_lower_aaline_fs(aaline_fs.ir.nir, &aaline->fs->generic_attrib);
++   nir_lower_aaline_fs(aaline_fs.ir.nir, &aaline->fs->generic_attrib, NULL, NULL);
+    aaline->fs->aaline_fs = aaline->driver_create_fs_state(pipe, &aaline_fs);
+    if (aaline->fs->aaline_fs == NULL)
+       return FALSE;
+diff --git a/src/gallium/auxiliary/nir/nir_draw_helpers.c b/src/gallium/auxiliary/nir/nir_draw_helpers.c
+index a3f4de32d9c..0ebc1ef0b69 100644
+--- a/src/gallium/auxiliary/nir/nir_draw_helpers.c
++++ b/src/gallium/auxiliary/nir/nir_draw_helpers.c
+@@ -148,6 +148,8 @@ nir_lower_pstipple_fs(struct nir_shader *shader,
+ 
+ typedef struct {
+    nir_variable *line_width_input;
++   nir_variable *stipple_counter;
++   nir_variable *stipple_pattern;
+ } lower_aaline;
+ 
+ static bool
+@@ -176,8 +178,43 @@ lower_aaline_instr(nir_builder *b, nir_instr *instr, void *data)
+    nir_ssa_def *tmp = nir_fsat(b, nir_fadd(b, nir_channels(b, lw, 0xa),
+                                              nir_fneg(b, nir_fabs(b, nir_channels(b, lw, 0x5)))));
+ 
++   nir_ssa_def *max = len;
++   if (state->stipple_counter) {
++      assert(state->stipple_pattern);
++
++      nir_ssa_def *counter = nir_load_var(b, state->stipple_counter);
++      nir_ssa_def *pattern = nir_load_var(b, state->stipple_pattern);
++      nir_ssa_def *factor = nir_i2f32(b, nir_ishr_imm(b, pattern, 16));
++      pattern = nir_iand_imm(b, pattern, 0xffff);
++
++      nir_ssa_def *stipple_pos = nir_vec2(b, nir_fadd_imm(b, counter, -0.5),
++                                             nir_fadd_imm(b, counter, 0.5));
++
++      stipple_pos = nir_frem(b, nir_fdiv(b, stipple_pos, factor),
++                                 nir_imm_float(b, 16.0));
++
++      nir_ssa_def *p = nir_f2i32(b, stipple_pos);
++      nir_ssa_def *one = nir_imm_float(b, 1.0);
++
++      // float t = 1.0 - min((1.0 - fract(stipple_pos.x)) * factor, 1.0);
++      nir_ssa_def *t = nir_ffract(b, nir_channel(b, stipple_pos, 0));
++      t = nir_fsub(b, one,
++                     nir_fmin(b, nir_fmul(b, factor,
++                                          nir_fsub(b, one, t)), one));
++
++      // vec2 a = vec2((uvec2(pattern) >> p) & uvec2(1u));
++      nir_ssa_def *a = nir_i2f32(b,
++         nir_iand(b, nir_ishr(b, nir_vec2(b, pattern, pattern), p),
++                  nir_imm_ivec2(b, 1, 1)));
++
++      // float cov = mix(a.x, a.y, t);
++      nir_ssa_def *cov = nir_flrp(b, nir_channel(b, a, 0), nir_channel(b, a, 1), t);
++
++      max = nir_fmin(b, len, cov);
++   }
++
+    tmp = nir_fmul(b, nir_channel(b, tmp, 0),
+-                  nir_fmin(b, nir_channel(b, tmp, 1), len));
++                  nir_fmin(b, nir_channel(b, tmp, 1), max));
+    tmp = nir_fmul(b, nir_channel(b, out_input, 3), tmp);
+ 
+    nir_ssa_def *out = nir_vec4(b, nir_channel(b, out_input, 0),
+@@ -189,9 +226,14 @@ lower_aaline_instr(nir_builder *b, nir_instr *instr, void *data)
+ }
+ 
+ void
+-nir_lower_aaline_fs(struct nir_shader *shader, int *varying)
++nir_lower_aaline_fs(struct nir_shader *shader, int *varying,
++                    nir_variable *stipple_counter,
++                    nir_variable *stipple_pattern)
+ {
+-   lower_aaline state;
++   lower_aaline state = {
++      .stipple_counter = stipple_counter,
++      .stipple_pattern = stipple_pattern,
++   };
+    assert(shader->info.stage == MESA_SHADER_FRAGMENT);
+ 
+    int highest_location = -1, highest_drv_location = -1;
+diff --git a/src/gallium/auxiliary/nir/nir_draw_helpers.h b/src/gallium/auxiliary/nir/nir_draw_helpers.h
+index 4262c45ef42..114fc8d89b4 100644
+--- a/src/gallium/auxiliary/nir/nir_draw_helpers.h
++++ b/src/gallium/auxiliary/nir/nir_draw_helpers.h
+@@ -38,7 +38,9 @@ nir_lower_pstipple_fs(struct nir_shader *shader,
+                       bool fs_pos_is_sysval);
+ 
+ void
+-nir_lower_aaline_fs(struct nir_shader *shader, int *varying);
++nir_lower_aaline_fs(struct nir_shader *shader, int *varying,
++                    nir_variable *stipple_counter,
++                    nir_variable *stipple_pattern);
+ 
+ void
+ nir_lower_aapoint_fs(struct nir_shader *shader, int *varying);
+diff --git a/src/gallium/drivers/zink/zink_compiler.c b/src/gallium/drivers/zink/zink_compiler.c
+index 36cb677a355..8b6e67cc461 100644
+--- a/src/gallium/drivers/zink/zink_compiler.c
++++ b/src/gallium/drivers/zink/zink_compiler.c
+@@ -813,7 +813,7 @@ static bool
+ lower_line_smooth_fs(nir_shader *shader)
+ {
+    int dummy;
+-   nir_lower_aaline_fs(shader, &dummy);
++   nir_lower_aaline_fs(shader, &dummy, NULL, NULL);
+    return true;
+ }
+ 
+-- 
+2.17.1
+

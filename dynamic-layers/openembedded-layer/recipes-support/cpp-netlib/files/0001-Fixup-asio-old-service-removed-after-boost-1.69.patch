@@ -1,0 +1,35 @@
+From 72383174eb3e0db09cf7ed12ccc53b0c656ee7cc Mon Sep 17 00:00:00 2001
+From: "Hsia-Jun(Randy) Li" <randy.li@synaptics.com>
+Date: Fri, 1 Sep 2023 11:42:46 +0800
+Subject: [PATCH] Fixup asio old service removed after boost 1.69
+
+BOOST_ASIO_ENABLE_OLD_SERVICES option and all those header
+files are removed from boost asio 1.70.
+
+Signed-off-by: Hsia-Jun(Randy) Li <randy.li@synaptics.com>
+---
+ boost/network/protocol/stream_handler.hpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/boost/network/protocol/stream_handler.hpp b/boost/network/protocol/stream_handler.hpp
+index ffb09b82..497d2e73 100644
+--- a/boost/network/protocol/stream_handler.hpp
++++ b/boost/network/protocol/stream_handler.hpp
+@@ -13,13 +13,13 @@
+ #include <memory>
+ #include <boost/asio/async_result.hpp>
+ #include <boost/asio/basic_socket.hpp>
++#include <boost/asio/basic_stream_socket.hpp>
+ #include <boost/asio/detail/config.hpp>
+ #include <boost/asio/detail/handler_type_requirements.hpp>
+ #include <boost/asio/detail/push_options.hpp>
+ #include <boost/asio/detail/throw_error.hpp>
+ #include <boost/asio/error.hpp>
+ #include <boost/asio/io_service.hpp>
+-#include <boost/asio/stream_socket_service.hpp>
+ #include <cstddef>
+ 
+ #ifdef BOOST_NETWORK_ENABLE_HTTPS
+-- 
+2.17.1
+

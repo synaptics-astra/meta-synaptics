@@ -1,0 +1,133 @@
+From 150597ede7176416053dfd65bde0850e3c52a862 Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Mon, 13 Feb 2023 14:56:06 -0500
+Subject: [PATCH 155/168] zink: don't handle mutable init on surface creation
+ with tc enabled
+
+using the cmdbuf during this call is illegal and causes desync, thus
+the initialization has to be deferred until the surface is bound
+
+fixes #7579
+
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/21292>
+---
+ src/gallium/drivers/zink/zink_context.c | 18 +++++++++++++++++
+ src/gallium/drivers/zink/zink_surface.c | 26 +++++++++++++++++++++----
+ src/gallium/drivers/zink/zink_types.h   |  1 +
+ 3 files changed, 41 insertions(+), 4 deletions(-)
+
+diff --git a/src/gallium/drivers/zink/zink_context.c b/src/gallium/drivers/zink/zink_context.c
+index 4589a3a793a..fb790450c5b 100644
+--- a/src/gallium/drivers/zink/zink_context.c
++++ b/src/gallium/drivers/zink/zink_context.c
+@@ -2970,6 +2970,22 @@ zink_set_color_write_enables(struct zink_context *ctx)
+    }
+ }
+ 
++static void
++check_framebuffer_surface_mutable(struct pipe_context *pctx, struct pipe_surface *psurf)
++{
++   struct zink_context *ctx = zink_context(pctx);
++   struct zink_ctx_surface *csurf = (struct zink_ctx_surface *)psurf;
++   if (!csurf->needs_mutable)
++      return;
++   zink_resource_object_init_mutable(ctx, zink_resource(psurf->texture));
++   struct pipe_surface *psurf2 = pctx->create_surface(pctx, psurf->texture, psurf);
++   pipe_resource_reference(&psurf2->texture, NULL);
++   struct zink_ctx_surface *csurf2 = (struct zink_ctx_surface *)psurf2;
++   zink_surface_reference(zink_screen(pctx->screen), &csurf->surf, csurf2->surf);
++   pctx->surface_destroy(pctx, psurf2);
++   csurf->needs_mutable = false;
++}
++
+ static void
+ zink_set_framebuffer_state(struct pipe_context *pctx,
+                            const struct pipe_framebuffer_state *state)
+@@ -3056,6 +3072,7 @@ zink_set_framebuffer_state(struct pipe_context *pctx,
+          if (!samples)
+             samples = MAX3(transient ? transient->base.nr_samples : 1, psurf->texture->nr_samples, 1);
+          struct zink_resource *res = zink_resource(psurf->texture);
++         check_framebuffer_surface_mutable(pctx, psurf);
+          if (zink_csurface(psurf)->info.layerCount > layers)
+             ctx->fb_layer_mismatch |= BITFIELD_BIT(i);
+          if (res->modifiers) {
+@@ -3085,6 +3102,7 @@ zink_set_framebuffer_state(struct pipe_context *pctx,
+    if (ctx->fb_state.zsbuf) {
+       struct pipe_surface *psurf = ctx->fb_state.zsbuf;
+       struct zink_surface *transient = zink_transient_surface(psurf);
++      check_framebuffer_surface_mutable(pctx, psurf);
+       if (transient)
+          ctx->transient_attachments |= BITFIELD_BIT(PIPE_MAX_COLOR_BUFS);
+       if (!samples)
+diff --git a/src/gallium/drivers/zink/zink_surface.c b/src/gallium/drivers/zink/zink_surface.c
+index 5381e54b261..0ac38252250 100644
+--- a/src/gallium/drivers/zink/zink_surface.c
++++ b/src/gallium/drivers/zink/zink_surface.c
+@@ -272,10 +272,18 @@ zink_create_surface(struct pipe_context *pctx,
+ {
+    struct zink_resource *res = zink_resource(pres);
+    bool is_array = templ->u.tex.last_layer != templ->u.tex.first_layer;
++   bool needs_mutable = false;
+    enum pipe_texture_target target_2d[] = {PIPE_TEXTURE_2D, PIPE_TEXTURE_2D_ARRAY};
+-   if (!res->obj->dt && pres->format != templ->format)
++   if (!res->obj->dt && pres->format != templ->format) {
+       /* mutable not set by default */
++      needs_mutable = !(res->base.b.bind & ZINK_BIND_MUTABLE);
++   }
++
++   if (!zink_screen(pctx->screen)->threaded && needs_mutable) {
++      /* this is fine without tc */
++      needs_mutable = false;
+       zink_resource_object_init_mutable(zink_context(pctx), res);
++   }
+ 
+    if (!zink_get_format(zink_screen(pctx->screen), templ->format))
+       return NULL;
+@@ -291,12 +299,19 @@ zink_create_surface(struct pipe_context *pctx,
+          surface->is_swapchain = true;
+          psurf = &surface->base;
+       }
+-   } else
++   } else if (!needs_mutable) {
+       psurf = zink_get_surface(zink_context(pctx), pres, templ, &ivci);
+-   if (!psurf)
++   }
++   if (!psurf && !needs_mutable)
+       return NULL;
+ 
+-   struct zink_ctx_surface *csurf = (struct zink_ctx_surface*)wrap_surface(pctx, psurf);
++   struct zink_ctx_surface *csurf = (struct zink_ctx_surface*)wrap_surface(pctx, needs_mutable ? templ : psurf);
++   csurf->needs_mutable = needs_mutable;
++   if (needs_mutable) {
++      csurf->surf = NULL;
++      pipe_resource_reference(&csurf->base.texture, pres);
++      init_pipe_surface_info(pctx, &csurf->base, templ, pres);
++   }
+ 
+    /* TODO: use VK_EXT_multisampled_render_to_single_sampled and skip this entirely */
+    if (templ->nr_samples) {
+@@ -358,6 +373,9 @@ zink_surface_destroy(struct pipe_context *pctx,
+                      struct pipe_surface *psurface)
+ {
+    struct zink_ctx_surface *csurf = (struct zink_ctx_surface *)psurface;
++   if (csurf->needs_mutable)
++      /* this has an extra resource ref */
++      pipe_resource_reference(&csurf->base.texture, NULL);
+    zink_surface_reference(zink_screen(pctx->screen), &csurf->surf, NULL);
+    pipe_surface_release(pctx, (struct pipe_surface**)&csurf->transient);
+    FREE(csurf);
+diff --git a/src/gallium/drivers/zink/zink_types.h b/src/gallium/drivers/zink/zink_types.h
+index 6e354d6db05..d6084b27e39 100644
+--- a/src/gallium/drivers/zink/zink_types.h
++++ b/src/gallium/drivers/zink/zink_types.h
+@@ -1346,6 +1346,7 @@ struct zink_ctx_surface {
+    /* TODO: use VK_EXT_multisampled_render_to_single_sampled */
+    struct zink_ctx_surface *transient; //for use with EXT_multisample_render_to_texture
+    bool transient_init; //whether the transient surface has data
++   bool needs_mutable;
+ };
+ 
+ /* use this cast for framebuffer surfaces */
+-- 
+2.17.1
+

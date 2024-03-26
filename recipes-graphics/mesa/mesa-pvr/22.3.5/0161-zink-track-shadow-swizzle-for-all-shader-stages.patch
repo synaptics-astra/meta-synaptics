@@ -1,0 +1,167 @@
+From a2e1ac2f866579552f2deb4f3746b3c01b27d76d Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Sat, 25 Feb 2023 22:27:30 +0000
+Subject: [PATCH 161/168] zink: track shadow swizzle for all shader stages
+
+this will be used later on to enable the pass in all
+shader stages.
+---
+ src/gallium/drivers/zink/zink_context.c | 22 ++++++++++------------
+ src/gallium/drivers/zink/zink_program.c | 14 +++++++-------
+ src/gallium/drivers/zink/zink_program.h |  2 +-
+ src/gallium/drivers/zink/zink_types.h   |  2 +-
+ 4 files changed, 19 insertions(+), 21 deletions(-)
+
+diff --git a/src/gallium/drivers/zink/zink_context.c b/src/gallium/drivers/zink/zink_context.c
+index a6284cd39f4..60de3771837 100644
+--- a/src/gallium/drivers/zink/zink_context.c
++++ b/src/gallium/drivers/zink/zink_context.c
+@@ -524,7 +524,7 @@ get_imageview_for_binding(struct zink_context *ctx, gl_shader_stage stage, enum
+       return (ctx->di.emulate_nonseamless[stage] & ctx->di.cubes[stage] & BITFIELD_BIT(idx)) ?
+              sampler_view->cube_array :
+              sampler_view->shadow && stage == MESA_SHADER_FRAGMENT && ctx->gfx_stages[MESA_SHADER_FRAGMENT] &&
+-             (ctx->di.shadow.mask & ctx->gfx_stages[MESA_SHADER_FRAGMENT]->fs.legacy_shadow_mask & BITFIELD_BIT(idx)) ? sampler_view->shadow :
++             (ctx->di.shadow[MESA_SHADER_FRAGMENT].mask & ctx->gfx_stages[MESA_SHADER_FRAGMENT]->fs.legacy_shadow_mask & BITFIELD_BIT(idx)) ? sampler_view->shadow :
+              sampler_view->image_view;
+    }
+    case ZINK_DESCRIPTOR_TYPE_IMAGE: {
+@@ -1828,10 +1828,8 @@ unbind_samplerview(struct zink_context *ctx, gl_shader_stage stage, unsigned slo
+       unbind_descriptor_stage(res, stage);
+       unbind_descriptor_reads(res, stage);
+    }
+-   if (stage == MESA_SHADER_FRAGMENT) {
+-      assert(slot < 32);
+-      ctx->di.shadow.mask &= ~BITFIELD_BIT(slot);
+-   }
++   assert(slot < 32);
++   ctx->di.shadow[stage].mask &= ~BITFIELD_BIT(slot);
+ }
+ 
+ static void
+@@ -1847,7 +1845,7 @@ zink_set_sampler_views(struct pipe_context *pctx,
+    unsigned i;
+ 
+    const uint32_t mask = BITFIELD_RANGE(start_slot, num_views);
+-   uint32_t shadow_mask = ctx->di.shadow.mask;
++   uint32_t shadow_mask = ctx->di.shadow[shader_type].mask;
+    ctx->di.cubes[shader_type] &= ~mask;
+ 
+    bool update = false;
+@@ -1908,14 +1906,14 @@ zink_set_sampler_views(struct pipe_context *pctx,
+             res->obj->unordered_write = false;
+             if (b->shadow) {
+                assert(start_slot + i < 32); //bitfield size
+-               ctx->di.shadow.mask |= BITFIELD_BIT(start_slot + i);
++               ctx->di.shadow[shader_type].mask |= BITFIELD_BIT(start_slot + i);
+                /* this is already gonna be slow, so don't bother trying to micro-optimize */
+-               shadow_update |= memcmp(&ctx->di.shadow.swizzle[start_slot + i],
++               shadow_update |= memcmp(&ctx->di.shadow[shader_type].swizzle[start_slot + i],
+                                        &b->swizzle, sizeof(struct zink_fs_shadow_swizzle));
+-               memcpy(&ctx->di.shadow.swizzle[start_slot + i], &b->swizzle, sizeof(struct zink_fs_shadow_swizzle));
+-            } else if (shader_type == MESA_SHADER_FRAGMENT) {
++               memcpy(&ctx->di.shadow[shader_type].swizzle[start_slot + i], &b->swizzle, sizeof(struct zink_fs_shadow_swizzle));
++            } else {
+                assert(start_slot + i < 32); //bitfield size
+-               ctx->di.shadow.mask &= ~BITFIELD_BIT(start_slot + i);
++               ctx->di.shadow[shader_type].mask &= ~BITFIELD_BIT(start_slot + i);
+             }
+          }
+          res->sampler_binds[shader_type] |= BITFIELD_BIT(start_slot + i);
+@@ -1946,7 +1944,7 @@ zink_set_sampler_views(struct pipe_context *pctx,
+       zink_context_invalidate_descriptor_state(ctx, shader_type, ZINK_DESCRIPTOR_TYPE_SAMPLER_VIEW, start_slot, num_views);
+       if (!screen->info.have_EXT_non_seamless_cube_map)
+          update_nonseamless_shader_key(ctx, shader_type);
+-	  shadow_update |= shadow_mask != ctx->di.shadow.mask;
++	  shadow_update |= shadow_mask != ctx->di.shadow[shader_type].mask;
+       zink_set_fs_shadow_needs_shader_swizzle_key(ctx, shadow_update);
+    }
+ }
+diff --git a/src/gallium/drivers/zink/zink_program.c b/src/gallium/drivers/zink/zink_program.c
+index 828200959a1..7103e814a92 100644
+--- a/src/gallium/drivers/zink/zink_program.c
++++ b/src/gallium/drivers/zink/zink_program.c
+@@ -143,7 +143,7 @@ create_shader_module_for_stage(struct zink_context *ctx, struct zink_screen *scr
+       assert(ctx); //TODO async
+       mod = zink_shader_tcs_compile(screen, zs, patch_vertices);
+    } else {
+-      mod = zink_shader_compile(screen, zs, prog->nir[stage], key, &ctx->di.shadow);
++      mod = zink_shader_compile(screen, zs, prog->nir[stage], key, &ctx->di.shadow[stage]);
+    }
+    if (!mod) {
+       FREE(zm);
+@@ -170,8 +170,8 @@ create_shader_module_for_stage(struct zink_context *ctx, struct zink_screen *scr
+    else
+       zm->hash = shader_module_hash(zm);
+    if (unlikely(shadow_needs_shader_swizzle)) {
+-      memcpy(zm->key + key->size + nonseamless_size + inline_size * sizeof(uint32_t), &ctx->di.shadow, sizeof(struct zink_fs_shadow_key));
+-      zm->hash ^= _mesa_hash_data(&ctx->di.shadow, sizeof(struct zink_fs_shadow_key));
++      memcpy(zm->key + key->size + nonseamless_size + inline_size * sizeof(uint32_t), &ctx->di.shadow[stage], sizeof(struct zink_fs_shadow_key));
++      zm->hash ^= _mesa_hash_data(&ctx->di.shadow[stage], sizeof(struct zink_fs_shadow_key));
+    }
+    zm->default_variant = !inline_size && !util_dynarray_contains(&prog->shader_cache[stage][0][0], void*);
+    if (inline_size)
+@@ -210,7 +210,7 @@ get_shader_module_for_stage(struct zink_context *ctx, struct zink_screen *screen
+          if (unlikely(shadow_needs_shader_swizzle)) {
+             /* shadow swizzle data needs a manual compare since it's so fat */
+             if (memcmp(iter->key + iter->key_size + nonseamless_size + iter->num_uniforms * sizeof(uint32_t),
+-                       &ctx->di.shadow, sizeof(struct zink_fs_shadow_key)))
++                       &ctx->di.shadow[stage], sizeof(struct zink_fs_shadow_key)))
+                continue;
+          }
+       }
+@@ -256,7 +256,7 @@ create_shader_module_for_stage_optimal(struct zink_context *ctx, struct zink_scr
+       struct zink_tcs_key *tcs = (struct zink_tcs_key*)key;
+       mod = zink_shader_tcs_compile(screen, zs, tcs->patch_vertices);
+    } else {
+-      mod = zink_shader_compile(screen, zs, prog->nir[stage], (struct zink_shader_key*)key, shadow_needs_shader_swizzle ? &ctx->di.shadow : NULL);
++      mod = zink_shader_compile(screen, zs, prog->nir[stage], (struct zink_shader_key*)key, shadow_needs_shader_swizzle ? &ctx->di.shadow[stage] : NULL);
+    }
+    if (!mod) {
+       FREE(zm);
+@@ -271,7 +271,7 @@ create_shader_module_for_stage_optimal(struct zink_context *ctx, struct zink_scr
+       /* sanitize actual key bits */
+       *data = (*key) & mask;
+       if (unlikely(shadow_needs_shader_swizzle))
+-         memcpy(&data[1], &ctx->di.shadow, sizeof(struct zink_fs_shadow_key));
++         memcpy(&data[1], &ctx->di.shadow[stage], sizeof(struct zink_fs_shadow_key));
+    }
+    zm->default_variant = !util_dynarray_contains(&prog->shader_cache[stage][0][0], void*);
+    util_dynarray_append(&prog->shader_cache[stage][0][0], void*, zm);
+@@ -313,7 +313,7 @@ get_shader_module_for_stage_optimal(struct zink_context *ctx, struct zink_screen
+             continue;
+          if (unlikely(shadow_needs_shader_swizzle)) {
+             /* shadow swizzle data needs a manual compare since it's so fat */
+-            if (memcmp(iter->key + sizeof(uint16_t), &ctx->di.shadow, sizeof(struct zink_fs_shadow_key)))
++            if (memcmp(iter->key + sizeof(uint16_t), &ctx->di.shadow[stage], sizeof(struct zink_fs_shadow_key)))
+                continue;
+          }
+       }
+diff --git a/src/gallium/drivers/zink/zink_program.h b/src/gallium/drivers/zink/zink_program.h
+index f8f0b0777c7..b92d452fb2c 100644
+--- a/src/gallium/drivers/zink/zink_program.h
++++ b/src/gallium/drivers/zink/zink_program.h
+@@ -359,7 +359,7 @@ static inline void
+ zink_set_fs_shadow_needs_shader_swizzle_key(struct zink_context *ctx, bool swizzle_update)
+ {
+    const struct zink_fs_key_base *fs = zink_get_fs_base_key(ctx);
+-   bool enable = ctx->gfx_stages[MESA_SHADER_FRAGMENT] && (ctx->gfx_stages[MESA_SHADER_FRAGMENT]->fs.legacy_shadow_mask & ctx->di.shadow.mask) > 0;
++   bool enable = ctx->gfx_stages[MESA_SHADER_FRAGMENT] && (ctx->gfx_stages[MESA_SHADER_FRAGMENT]->fs.legacy_shadow_mask & ctx->di.shadow[MESA_SHADER_FRAGMENT].mask) > 0;
+    if (enable != fs->shadow_needs_shader_swizzle || (enable && swizzle_update))
+       zink_set_fs_base_key(ctx)->shadow_needs_shader_swizzle = enable;
+ }
+diff --git a/src/gallium/drivers/zink/zink_types.h b/src/gallium/drivers/zink/zink_types.h
+index d6084b27e39..5893d359a83 100644
+--- a/src/gallium/drivers/zink/zink_types.h
++++ b/src/gallium/drivers/zink/zink_types.h
+@@ -1656,7 +1656,7 @@ struct zink_context {
+       VkDescriptorImageInfo fbfetch;
+ 
+       /* the current state of the shadow swizzle data */
+-      struct zink_fs_shadow_key shadow;
++      struct zink_fs_shadow_key shadow[MESA_SHADER_STAGES];
+ 
+       struct zink_resource *descriptor_res[ZINK_DESCRIPTOR_BASE_TYPES][MESA_SHADER_STAGES][PIPE_MAX_SAMPLERS];
+ 
+-- 
+2.17.1
+

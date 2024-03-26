@@ -1,0 +1,45 @@
+From 8cbccbc6182f92a6256ef73bfb1a74eec0ccc5f6 Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Tue, 17 Jan 2023 19:24:13 +0000
+Subject: [PATCH 059/168] vulkan/wsi: dEQP
+ wayland.swapchain.simulate_oom.min_image_count fix
+
+Fix for segfault with dEQP test case
+dEQP-VK.wsi.wayland.swapchain.simulate_oom.min_image_count.
+
+In wsi_wl_surface_create_swapchain, if wsi_wl_surface_init failed,
+wsi_wl_swapchain_chain_free was called without wsi_swapchain_init
+having been called, resulting in a segfault in wsi_swapchain_finish,
+due to chain->wsi having never been initialised.
+---
+ src/vulkan/wsi/wsi_common_wayland.c | 7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/src/vulkan/wsi/wsi_common_wayland.c b/src/vulkan/wsi/wsi_common_wayland.c
+index da3575fc584..e292ec4c70f 100644
+--- a/src/vulkan/wsi/wsi_common_wayland.c
++++ b/src/vulkan/wsi/wsi_common_wayland.c
+@@ -1940,8 +1940,10 @@ wsi_wl_surface_create_swapchain(VkIcdSurfaceBase *icd_surface,
+    wsi_wl_surface->chain = chain;
+ 
+    result = wsi_wl_surface_init(wsi_wl_surface, wsi_device);
+-   if (result != VK_SUCCESS)
+-      goto fail;
++   if (result != VK_SUCCESS) {
++      vk_free(pAllocator, chain);
++      return result;
++   }
+ 
+    enum wsi_wl_buffer_type buffer_type;
+    struct wsi_base_image_params *image_params = NULL;
+@@ -2039,7 +2041,6 @@ wsi_wl_surface_create_swapchain(VkIcdSurfaceBase *icd_surface,
+ fail_image_init:
+    wsi_wl_swapchain_images_free(chain);
+ 
+-fail:
+    wsi_wl_swapchain_chain_free(chain, pAllocator);
+ 
+    return result;
+-- 
+2.17.1
+

@@ -1,0 +1,31 @@
+From 47d0406885950a8c4c174e7d473559844104f777 Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Wed, 15 Feb 2023 13:10:11 +0000
+Subject: [PATCH 168/168] kopper: add compatibility to old style DRI interface
+
+Needed after "Add PVR Gallium driver" to make zink work.
+This should be merged with the above change for later releases.
+---
+ src/gallium/frontends/dri/kopper.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/src/gallium/frontends/dri/kopper.c b/src/gallium/frontends/dri/kopper.c
+index 54273647cc1..cfb9bfeae46 100644
+--- a/src/gallium/frontends/dri/kopper.c
++++ b/src/gallium/frontends/dri/kopper.c
+@@ -1044,8 +1044,12 @@ const __DRIkopperExtension driKopperExtension = {
+ const struct __DriverAPIRec galliumvk_driver_api = {
+    .InitScreen = kopper_init_screen,
+    .DestroyScreen = dri_destroy_screen,
++   .CreateContext = dri_create_context,
++   .DestroyContext = dri_destroy_context,
+    .CreateBuffer = kopper_create_buffer,
+    .DestroyBuffer = dri_destroy_buffer,
++   .MakeCurrent = dri_make_current,
++   .UnbindContext = dri_unbind_context,
+    .SwapBuffers = kopper_swap_buffers,
+    .CopySubBuffer = NULL,
+ };
+-- 
+2.17.1
+

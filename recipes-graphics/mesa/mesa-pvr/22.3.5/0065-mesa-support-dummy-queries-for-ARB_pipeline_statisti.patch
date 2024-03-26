@@ -1,0 +1,117 @@
+From 99bc9d22f15b0506dc276f21e1b0afbe806bf694 Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Tue, 15 Nov 2022 13:18:16 +0100
+Subject: [PATCH 065/168] mesa: support dummy queries for
+ ARB_pipeline_statistics_query
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Similar to ARB_occlusion_query / ARB_occlusion_query2, this extension
+allows zero bits for the queries, meaning there's no actual hardware
+requirements here.
+
+So let's just report zero bits if the driver doesn't support the CAP,
+and treat these queries as dummies like we already do for occlusion
+queries.
+
+We still don't expose the extension, this is just to make it possible to
+allow the core OpenGL functionality without exposing the extension.
+
+Reviewed-by: Soroush Kashani <soroush.kashani@imgtec.com>
+Reviewed-by: Christian Gmeiner <christian.gmeiner@gmail.com>
+Reviewed-by: Marek Olšák <marek.olsak@amd.com>
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/19750>
+---
+ src/mesa/main/queryobj.c            | 41 +++++++++++++++++++++--------
+ src/mesa/state_tracker/st_context.c |  2 ++
+ src/mesa/state_tracker/st_context.h |  1 +
+ 3 files changed, 33 insertions(+), 11 deletions(-)
+
+diff --git a/src/mesa/main/queryobj.c b/src/mesa/main/queryobj.c
+index a5385aaf456..9b75d69f0e4 100644
+--- a/src/mesa/main/queryobj.c
++++ b/src/mesa/main/queryobj.c
+@@ -133,6 +133,10 @@ query_type_is_dummy(struct gl_context *ctx, unsigned type)
+    case PIPE_QUERY_OCCLUSION_PREDICATE:
+    case PIPE_QUERY_OCCLUSION_PREDICATE_CONSERVATIVE:
+       return !st->has_occlusion_query;
++   case PIPE_QUERY_PIPELINE_STATISTICS:
++      return !st->has_pipeline_stat;
++   case PIPE_QUERY_PIPELINE_STATISTICS_SINGLE:
++      return !st->has_single_pipe_stat;
+    default:
+       break;
+    }
+@@ -1353,17 +1357,32 @@ _mesa_init_queryobj(struct gl_context *ctx)
+    ctx->Const.QueryCounterBits.PrimitivesGenerated = 64;
+    ctx->Const.QueryCounterBits.PrimitivesWritten = 64;
+ 
+-   ctx->Const.QueryCounterBits.VerticesSubmitted = 64;
+-   ctx->Const.QueryCounterBits.PrimitivesSubmitted = 64;
+-   ctx->Const.QueryCounterBits.VsInvocations = 64;
+-   ctx->Const.QueryCounterBits.TessPatches = 64;
+-   ctx->Const.QueryCounterBits.TessInvocations = 64;
+-   ctx->Const.QueryCounterBits.GsInvocations = 64;
+-   ctx->Const.QueryCounterBits.GsPrimitives = 64;
+-   ctx->Const.QueryCounterBits.FsInvocations = 64;
+-   ctx->Const.QueryCounterBits.ComputeInvocations = 64;
+-   ctx->Const.QueryCounterBits.ClInPrimitives = 64;
+-   ctx->Const.QueryCounterBits.ClOutPrimitives = 64;
++   if (screen->get_param(screen, PIPE_CAP_QUERY_PIPELINE_STATISTICS) ||
++       screen->get_param(screen, PIPE_CAP_QUERY_PIPELINE_STATISTICS_SINGLE)) {
++      ctx->Const.QueryCounterBits.VerticesSubmitted = 64;
++      ctx->Const.QueryCounterBits.PrimitivesSubmitted = 64;
++      ctx->Const.QueryCounterBits.VsInvocations = 64;
++      ctx->Const.QueryCounterBits.TessPatches = 64;
++      ctx->Const.QueryCounterBits.TessInvocations = 64;
++      ctx->Const.QueryCounterBits.GsInvocations = 64;
++      ctx->Const.QueryCounterBits.GsPrimitives = 64;
++      ctx->Const.QueryCounterBits.FsInvocations = 64;
++      ctx->Const.QueryCounterBits.ComputeInvocations = 64;
++      ctx->Const.QueryCounterBits.ClInPrimitives = 64;
++      ctx->Const.QueryCounterBits.ClOutPrimitives = 64;
++   } else {
++      ctx->Const.QueryCounterBits.VerticesSubmitted = 0;
++      ctx->Const.QueryCounterBits.PrimitivesSubmitted = 0;
++      ctx->Const.QueryCounterBits.VsInvocations = 0;
++      ctx->Const.QueryCounterBits.TessPatches = 0;
++      ctx->Const.QueryCounterBits.TessInvocations = 0;
++      ctx->Const.QueryCounterBits.GsInvocations = 0;
++      ctx->Const.QueryCounterBits.GsPrimitives = 0;
++      ctx->Const.QueryCounterBits.FsInvocations = 0;
++      ctx->Const.QueryCounterBits.ComputeInvocations = 0;
++      ctx->Const.QueryCounterBits.ClInPrimitives = 0;
++      ctx->Const.QueryCounterBits.ClOutPrimitives = 0;
++   }
+ }
+ 
+ 
+diff --git a/src/mesa/state_tracker/st_context.c b/src/mesa/state_tracker/st_context.c
+index 9573b5f8679..d711bd1750c 100644
+--- a/src/mesa/state_tracker/st_context.c
++++ b/src/mesa/state_tracker/st_context.c
+@@ -629,6 +629,8 @@ st_create_context_priv(struct gl_context *ctx, struct pipe_context *pipe,
+       screen->get_param(screen, PIPE_CAP_OCCLUSION_QUERY);
+    st->has_single_pipe_stat =
+       screen->get_param(screen, PIPE_CAP_QUERY_PIPELINE_STATISTICS_SINGLE);
++   st->has_pipeline_stat =
++      screen->get_param(screen, PIPE_CAP_QUERY_PIPELINE_STATISTICS);
+    st->has_indep_blend_func =
+       screen->get_param(screen, PIPE_CAP_INDEP_BLEND_FUNC);
+    st->needs_rgb_dst_alpha_override =
+diff --git a/src/mesa/state_tracker/st_context.h b/src/mesa/state_tracker/st_context.h
+index 11937cbc532..7f5c5dc65b9 100644
+--- a/src/mesa/state_tracker/st_context.h
++++ b/src/mesa/state_tracker/st_context.h
+@@ -158,6 +158,7 @@ struct st_context
+    boolean has_indirect_partial_stride;
+    boolean has_occlusion_query;
+    boolean has_single_pipe_stat;
++   boolean has_pipeline_stat;
+    boolean has_indep_blend_func;
+    boolean needs_rgb_dst_alpha_override;
+    boolean can_dither;
+-- 
+2.17.1
+

@@ -1,0 +1,108 @@
+From 9c388aa5a84373b65859ed680b785c1cc50249a9 Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Fri, 11 Nov 2022 10:35:40 +0100
+Subject: [PATCH 061/168] zink: remove descriptor-mode selection infrastructure
+
+We only support lazy descriptors these days, so having the
+infrastructure around to support automatic selection of that one mode is
+kinda silly.
+
+And it's not like setting an environment variable that is never read is
+going to cause any issues, so we don't even need this to avoid breaking
+existing setups.
+
+Let's just rip it out. We can reintroduce it again on the off-chance
+that someone has a new clever descriptor mode they want to experiment
+with.
+
+Reviewed-by: Hoe Hao Cheng <haochengho12907@gmail.com>
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/19670>
+---
+ docs/drivers/zink.rst                  | 13 -------------
+ src/gallium/drivers/zink/zink_screen.c | 15 ---------------
+ src/gallium/drivers/zink/zink_types.h  |  5 -----
+ 3 files changed, 33 deletions(-)
+
+diff --git a/docs/drivers/zink.rst b/docs/drivers/zink.rst
+index 157ecc82e4a..7bf397796f6 100644
+--- a/docs/drivers/zink.rst
++++ b/docs/drivers/zink.rst
+@@ -247,19 +247,6 @@ are required to be supported
+ 
+   * `VK_KHR_draw_indirect_count`_
+ 
+-Performance
+------------
+-
+-If you notice poor performance and high CPU usage while running an application,
+-changing the descriptor manager may improve performance:
+-
+-.. envvar:: ZINK_DESCRIPTORS <mode> ("auto")
+-
+-``auto``
+-   Automatically detect best mode. This is the default.
+-``lazy``
+-   Attempt to use the least amount of CPU by binding descriptors opportunistically.
+-
+ Debugging
+ ---------
+ 
+diff --git a/src/gallium/drivers/zink/zink_screen.c b/src/gallium/drivers/zink/zink_screen.c
+index 3427b68cd8c..79d85ce1899 100644
+--- a/src/gallium/drivers/zink/zink_screen.c
++++ b/src/gallium/drivers/zink/zink_screen.c
+@@ -89,17 +89,6 @@ uint32_t
+ zink_debug;
+ 
+ 
+-static const struct debug_named_value
+-zink_descriptor_options[] = {
+-   { "auto", ZINK_DESCRIPTOR_MODE_AUTO, "Automatically detect best mode" },
+-   { "lazy", ZINK_DESCRIPTOR_MODE_LAZY, "Don't cache, do least amount of updates" },
+-   DEBUG_NAMED_VALUE_END
+-};
+-
+-DEBUG_GET_ONCE_FLAGS_OPTION(zink_descriptor_mode, "ZINK_DESCRIPTORS", zink_descriptor_options, ZINK_DESCRIPTOR_MODE_AUTO)
+-
+-enum zink_descriptor_mode zink_descriptor_mode;
+-
+ static const char *
+ zink_get_vendor(struct pipe_screen *pscreen)
+ {
+@@ -2451,7 +2440,6 @@ zink_internal_create_screen(const struct pipe_screen_config *config)
+    screen->abort_on_hang = debug_get_bool_option("ZINK_HANG_ABORT", false);
+ 
+    zink_debug = debug_get_option_zink_debug();
+-   zink_descriptor_mode = debug_get_option_zink_descriptor_mode();
+ 
+    screen->loader_lib = util_dl_open(VK_LIBNAME);
+    if (!screen->loader_lib)
+@@ -2560,9 +2548,6 @@ zink_internal_create_screen(const struct pipe_screen_config *config)
+       screen->desc_set_id[ZINK_DESCRIPTOR_TYPE_IMAGE] = 4;
+       screen->desc_set_id[ZINK_DESCRIPTOR_BINDLESS] = 5;
+    }
+-   if (zink_descriptor_mode == ZINK_DESCRIPTOR_MODE_AUTO) {
+-      zink_descriptor_mode = ZINK_DESCRIPTOR_MODE_LAZY;
+-   }
+ 
+    if (screen->info.have_EXT_calibrated_timestamps && !check_have_device_time(screen))
+       goto fail;
+diff --git a/src/gallium/drivers/zink/zink_types.h b/src/gallium/drivers/zink/zink_types.h
+index b05ad12ed18..7968e44aad2 100644
+--- a/src/gallium/drivers/zink/zink_types.h
++++ b/src/gallium/drivers/zink/zink_types.h
+@@ -147,11 +147,6 @@ enum zink_descriptor_type {
+    ZINK_DESCRIPTOR_NON_BINDLESS_TYPES = ZINK_DESCRIPTOR_BASE_TYPES + 1, /**< for struct sizing */
+ };
+ 
+-enum zink_descriptor_mode {
+-   ZINK_DESCRIPTOR_MODE_AUTO,
+-   ZINK_DESCRIPTOR_MODE_LAZY,
+-};
+-
+ /* indexing for descriptor template management */
+ enum zink_descriptor_size_index {
+    ZDS_INDEX_UBO,
+-- 
+2.17.1
+

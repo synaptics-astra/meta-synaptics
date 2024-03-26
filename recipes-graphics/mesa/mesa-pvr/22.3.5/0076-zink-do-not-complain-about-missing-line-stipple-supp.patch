@@ -1,0 +1,37 @@
+From a10ce655fdd83be18a445e3bc4cdd060063c8965 Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Tue, 27 Sep 2022 09:57:10 +0200
+Subject: [PATCH 076/168] zink: do not complain about missing line-stipple
+ support
+
+We can lower this now, so let's not complain about it...
+
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/19117>
+---
+ src/gallium/drivers/zink/zink_pipeline.c | 10 +++++++++-
+ 1 file changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/src/gallium/drivers/zink/zink_pipeline.c b/src/gallium/drivers/zink/zink_pipeline.c
+index b78c5df3408..0af7fd4b34f 100644
+--- a/src/gallium/drivers/zink/zink_pipeline.c
++++ b/src/gallium/drivers/zink/zink_pipeline.c
+@@ -294,7 +294,15 @@ zink_create_gfx_pipeline(struct zink_screen *screen,
+          mode_idx += hw_rast_state->line_stipple_enable * 3;
+          if (*(feat + mode_idx))
+             rast_line_state.lineRasterizationMode = hw_rast_state->line_mode;
+-         else
++         else if (hw_rast_state->line_stipple_enable &&
++                  screen->driver_workarounds.no_linestipple) {
++            /* drop line stipple, we can emulate it */
++            mode_idx -= hw_rast_state->line_stipple_enable * 3;
++            if (*(feat + mode_idx))
++               rast_line_state.lineRasterizationMode = hw_rast_state->line_mode;
++            else
++               warn_missing_feature(warned[mode_idx], features[hw_rast_state->line_mode][0]);
++         } else
+             warn_missing_feature(warned[mode_idx], features[hw_rast_state->line_mode][hw_rast_state->line_stipple_enable]);
+       }
+ 
+-- 
+2.17.1
+

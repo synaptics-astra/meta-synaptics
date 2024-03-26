@@ -1,0 +1,48 @@
+From ef516e97c3d9ee6cc80f4d6d4576814f11a321e4 Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Sun, 12 Feb 2023 17:05:15 +0000
+Subject: [PATCH 148/168] zink: allocate program shader caches from the
+ program's mem ctx
+
+these will now be freed when the program itself is freed.
+
+cc: mesa-stable
+
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/21285>
+---
+ src/gallium/drivers/zink/zink_program.c | 12 ++++++------
+ 1 file changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/src/gallium/drivers/zink/zink_program.c b/src/gallium/drivers/zink/zink_program.c
+index 14a21d6b901..828200959a1 100644
+--- a/src/gallium/drivers/zink/zink_program.c
++++ b/src/gallium/drivers/zink/zink_program.c
+@@ -901,10 +901,10 @@ zink_create_gfx_program(struct zink_context *ctx,
+    prog->ctx = ctx;
+ 
+    for (int i = 0; i < ZINK_GFX_SHADER_COUNT; ++i) {
+-      util_dynarray_init(&prog->shader_cache[i][0][0], NULL);
+-      util_dynarray_init(&prog->shader_cache[i][0][1], NULL);
+-      util_dynarray_init(&prog->shader_cache[i][1][0], NULL);
+-      util_dynarray_init(&prog->shader_cache[i][1][1], NULL);
++      util_dynarray_init(&prog->shader_cache[i][0][0], prog);
++      util_dynarray_init(&prog->shader_cache[i][0][1], prog);
++      util_dynarray_init(&prog->shader_cache[i][1][0], prog);
++      util_dynarray_init(&prog->shader_cache[i][1][1], prog);
+       if (stages[i]) {
+          prog->shaders[i] = stages[i];
+          prog->stages_present |= BITFIELD_BIT(i);
+@@ -1026,8 +1026,8 @@ precompile_compute_job(void *data, void *gdata, int thread_index)
+    assert(comp->module);
+    comp->module->shader = zink_shader_compile(screen, comp->shader, comp->shader->nir, NULL, NULL);
+    assert(comp->module->shader);
+-   util_dynarray_init(&comp->shader_cache[0], NULL);
+-   util_dynarray_init(&comp->shader_cache[1], NULL);
++   util_dynarray_init(&comp->shader_cache[0], comp);
++   util_dynarray_init(&comp->shader_cache[1], comp);
+ 
+    struct blob blob = {0};
+    blob_init(&blob);
+-- 
+2.17.1
+

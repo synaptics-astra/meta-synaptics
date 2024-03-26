@@ -1,0 +1,54 @@
+From 975d08ac2f7f8f70655eb91dd071fa13e8e7de6f Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Mon, 19 Sep 2022 16:12:57 -0400
+Subject: [PATCH 121/168] zink: add a util function for creating semaphores
+
+annoying to keep copy/pasting this around
+
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/20681>
+---
+ src/gallium/drivers/zink/zink_screen.c | 13 +++++++++++++
+ src/gallium/drivers/zink/zink_screen.h |  3 +++
+ 2 files changed, 16 insertions(+)
+
+diff --git a/src/gallium/drivers/zink/zink_screen.c b/src/gallium/drivers/zink/zink_screen.c
+index 29e20a2ba89..bb3f92c9612 100644
+--- a/src/gallium/drivers/zink/zink_screen.c
++++ b/src/gallium/drivers/zink/zink_screen.c
+@@ -2454,6 +2454,19 @@ zink_get_disk_shader_cache(struct pipe_screen *_screen)
+    return screen->disk_cache;
+ }
+ 
++VkSemaphore
++zink_create_semaphore(struct zink_screen *screen)
++{
++   VkSemaphoreCreateInfo sci = {
++      VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
++      NULL,
++      0
++   };
++   VkSemaphore sem = VK_NULL_HANDLE;
++   VkResult ret = VKSCR(CreateSemaphore)(screen->dev, &sci, NULL, &sem);
++   return ret == VK_SUCCESS ? sem : VK_NULL_HANDLE;
++}
++
+ static struct zink_screen *
+ zink_internal_create_screen(const struct pipe_screen_config *config)
+ {
+diff --git a/src/gallium/drivers/zink/zink_screen.h b/src/gallium/drivers/zink/zink_screen.h
+index e678eb47f4f..1eed13c197c 100644
+--- a/src/gallium/drivers/zink/zink_screen.h
++++ b/src/gallium/drivers/zink/zink_screen.h
+@@ -96,6 +96,9 @@ zink_screen_handle_vkresult(struct zink_screen *screen, VkResult ret)
+    return success;
+ }
+ 
++VkSemaphore
++zink_create_semaphore(struct zink_screen *screen);
++
+ VkFormat
+ zink_get_format(struct zink_screen *screen, enum pipe_format format);
+ 
+-- 
+2.17.1
+

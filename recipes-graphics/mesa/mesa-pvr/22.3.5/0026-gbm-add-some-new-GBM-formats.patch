@@ -1,0 +1,134 @@
+From 4f30b27325e00d237f9f6bcd852033cb7ad0981d Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Thu, 30 Aug 2018 13:48:53 +0100
+Subject: [PATCH 026/168] gbm: add some new GBM formats
+
+GBM_FORMAT_ARGB4444
+GBM_FORMAT_BGR888
+GBM_FORMAT_AXBXGXRX106106106106
+GBM_FORMAT_YUYV
+GBM_FORMAT_YVU444_PACK10_IMG
+---
+ include/GL/internal/dri_interface.h |  1 +
+ src/egl/drivers/dri2/egl_dri2.c     |  1 +
+ src/gbm/backends/dri/gbm_dri.c      | 21 +++++++++++++++++++++
+ src/gbm/main/gbm.c                  |  1 +
+ src/gbm/main/gbm.h                  |  8 ++++++++
+ 5 files changed, 32 insertions(+)
+
+diff --git a/include/GL/internal/dri_interface.h b/include/GL/internal/dri_interface.h
+index 4b1b691e217..75ced1b9660 100644
+--- a/include/GL/internal/dri_interface.h
++++ b/include/GL/internal/dri_interface.h
+@@ -1279,6 +1279,7 @@ struct __DRIdri2ExtensionRec {
+ #define __DRI_IMAGE_FORMAT_YV12         0x101f
+ #define __DRI_IMAGE_FORMAT_YVYU         0x1020
+ #define __DRI_IMAGE_FORMAT_VYUY         0x1021
++#define __DRI_IMAGE_FORMAT_AXBXGXRX106106106106 0x1022
+ 
+ #define __DRI_IMAGE_USE_SHARE		0x0001
+ #define __DRI_IMAGE_USE_SCANOUT		0x0002
+diff --git a/src/egl/drivers/dri2/egl_dri2.c b/src/egl/drivers/dri2/egl_dri2.c
+index d2e7b2b7922..5cfce95aa42 100644
+--- a/src/egl/drivers/dri2/egl_dri2.c
++++ b/src/egl/drivers/dri2/egl_dri2.c
+@@ -2884,6 +2884,7 @@ dri2_num_fourcc_format_planes(EGLint format)
+    case DRM_FORMAT_XBGR16161616:
+    case DRM_FORMAT_XBGR16161616F:
+    case DRM_FORMAT_ABGR16161616F:
++   case DRM_FORMAT_AXBXGXRX106106106106:
+    case DRM_FORMAT_YUYV:
+    case DRM_FORMAT_YVYU:
+    case DRM_FORMAT_UYVY:
+diff --git a/src/gbm/backends/dri/gbm_dri.c b/src/gbm/backends/dri/gbm_dri.c
+index 53edc1928d8..5b18bdcccbc 100644
+--- a/src/gbm/backends/dri/gbm_dri.c
++++ b/src/gbm/backends/dri/gbm_dri.c
+@@ -564,11 +564,21 @@ static const struct gbm_dri_visual gbm_dri_visuals_table[] = {
+      { 10, 5, 0, 11 },
+      { 5, 5, 5, 1 },
+    },
++   {
++      GBM_FORMAT_ARGB4444, __DRI_IMAGE_FORMAT_ARGB4444,
++      { 8, 4, 0, 12 },
++      { 4, 4, 4, 4 },
++   },
+    {
+      GBM_FORMAT_RGB565, __DRI_IMAGE_FORMAT_RGB565,
+      { 11, 5, 0, -1 },
+      { 5, 6, 5, 0 },
+    },
++   {
++     GBM_FORMAT_BGR888, __DRI_IMAGE_FORMAT_BGR888,
++     { 0, 8, 16, -1 },
++     { 8, 8, 8, 0 },
++   },
+    {
+      GBM_FORMAT_XRGB8888, __DRI_IMAGE_FORMAT_XRGB8888,
+      { 16, 8, 0, -1 },
+@@ -619,6 +629,11 @@ static const struct gbm_dri_visual gbm_dri_visuals_table[] = {
+      { 0, 16, 32, 48 },
+      { 16, 16, 16, 16 },
+    },
++   {
++     GBM_FORMAT_AXBXGXRX106106106106, __DRI_IMAGE_FORMAT_AXBXGXRX106106106106,
++     { 6, 22, 38, 54 },
++     { 10, 10, 10, 10 },
++   },
+    {
+      GBM_FORMAT_XBGR16161616F, __DRI_IMAGE_FORMAT_XBGR16161616F,
+      { 0, 16, 32, -1 },
+@@ -631,6 +646,12 @@ static const struct gbm_dri_visual gbm_dri_visuals_table[] = {
+      { 16, 16, 16, 16 },
+      true,
+    },
++   {
++     GBM_FORMAT_YUYV, __DRI_IMAGE_FORMAT_YUYV,
++   },
++   {
++     GBM_FORMAT_YVU444_PACK10_IMG, __DRI_IMAGE_FORMAT_YVU444_PACK10_IMG,
++   },
+ };
+ 
+ static int
+diff --git a/src/gbm/main/gbm.c b/src/gbm/main/gbm.c
+index 27e9f5bcd03..1b14320ba76 100644
+--- a/src/gbm/main/gbm.c
++++ b/src/gbm/main/gbm.c
+@@ -277,6 +277,7 @@ gbm_bo_get_bpp(struct gbm_bo *bo)
+       case GBM_FORMAT_ABGR16161616:
+       case GBM_FORMAT_XBGR16161616F:
+       case GBM_FORMAT_ABGR16161616F:
++      case GBM_FORMAT_AXBXGXRX106106106106:
+          return 64;
+    }
+ }
+diff --git a/src/gbm/main/gbm.h b/src/gbm/main/gbm.h
+index 207b6cf9d74..067d36f16fd 100644
+--- a/src/gbm/main/gbm.h
++++ b/src/gbm/main/gbm.h
+@@ -171,6 +171,12 @@ enum gbm_bo_format {
+ 
+ #define GBM_FORMAT_ABGR16161616F __gbm_fourcc_code('A', 'B', '4', 'H') /* [63:0] A:B:G:R 16:16:16:16 little endian */
+ 
++/*
++ * RGBA format with 10-bit components packed in 64-bit per pixel, with 6 bits
++ * of unused padding per component:
++ */
++#define GBM_FORMAT_AXBXGXRX106106106106 __gbm_fourcc_code('A', 'B', '1', '0') /* [63:0] A:x:B:x:G:x:R:x 10:6:10:6:10:6:10:6 little endian */
++
+ /* packed YCbCr */
+ #define GBM_FORMAT_YUYV		__gbm_fourcc_code('Y', 'U', 'Y', 'V') /* [31:0] Cr0:Y1:Cb0:Y0 8:8:8:8 little endian */
+ #define GBM_FORMAT_YVYU		__gbm_fourcc_code('Y', 'V', 'Y', 'U') /* [31:0] Cb0:Y1:Cr0:Y0 8:8:8:8 little endian */
+@@ -179,6 +185,8 @@ enum gbm_bo_format {
+ 
+ #define GBM_FORMAT_AYUV		__gbm_fourcc_code('A', 'Y', 'U', 'V') /* [31:0] A:Y:Cb:Cr 8:8:8:8 little endian */
+ 
++#define GBM_FORMAT_YVU444_PACK10_IMG __gbm_fourcc_code('I', 'M', 'G', '2') /* [31:0] unused:Y:Cr:Cb 2:10:10:10 little endian */
++
+ /*
+  * 2 plane YCbCr
+  * index 0 = Y plane, [7:0] Y
+-- 
+2.17.1
+

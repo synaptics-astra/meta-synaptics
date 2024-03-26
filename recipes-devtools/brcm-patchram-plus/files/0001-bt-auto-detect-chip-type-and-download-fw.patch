@@ -1,0 +1,344 @@
+From a137571d4c83a5bd7ddcc2b0fbc4f880353c54e0 Mon Sep 17 00:00:00 2001
+From: "Hong.Song" <Hong.Song@synaptics.com>
+Date: Mon, 4 Mar 2024 17:25:34 +0800
+Subject: [PATCH] bt: auto-detect chip type and download fw
+
+---
+ brcm_patchram_plus.c | 274 ++++++++++++++++++++++-----------
+ 1 file changed, 185 insertions(+), 89 deletions(-)
+
+diff --git a/brcm_patchram_plus.c b/brcm_patchram_plus.c
+index b4fa5a8..05d26db 100644
+--- a/brcm_patchram_plus.c
++++ b/brcm_patchram_plus.c
+@@ -102,7 +102,8 @@
+ **                 This is overridden by --bd_addr on the command line.
+ **
+ ******************************************************************************/
+-
++// TODO: Integrate BCM support into Bluez hciattach
++#include <unistd.h>
+ #include <stdio.h>
+ #include <getopt.h>
+ #include <errno.h>
+@@ -112,7 +113,8 @@
+ #include <fcntl.h>
+ 
+ #include <stdlib.h>
+-
++#include <sys/types.h>
++#include <dirent.h>
+ #ifdef ANDROID
+ #include <termios.h>
+ #else
+@@ -203,32 +205,126 @@ uchar hci_write_pcm_data_format[] =
+ uchar hci_write_i2spcm_interface_param[] =
+ 	{ 0x01, 0x6d, 0xFC, 0x04, 0x00, 0x00, 0x00, 0x00 };
+ 
+-uchar hci_write_uart_clock_setting_48Mhz[] =
+-	{ 0x01, 0x45, 0xfc, 0x01, 0x01 };
++uchar hci_read_local_name[] = {0x01, 0x14, 0x0c, 0x00};
++uchar chip_name[512];
++uchar chip_firmware_path[512];
++#define FALSE 0
++#define TRUE 1
++#define FW_PATCHFILE_EXTENSION      ".hcd"
++#define FW_PATCHFILE_EXTENSION_LEN  4
++#define FW_PATCHFILE_PATH_MAXLEN    248 /* Local_Name length of return of
++                                           HCI_Read_Local_Name */
+ 
+-int
+-parse_patchram(char *optarg)
++/*******************************************************************************
++**
++** Function         hw_config_findpatch
++**
++** Description      Search for a proper firmware patch file
++**                  The selected firmware patch file name with full path
++**                  will be stored in the input string parameter, i.e.
++**                  p_chip_id_str, when returns.
++**
++** Returns          TRUE when found the target patch file, otherwise FALSE
++**
++*******************************************************************************/
++static uchar hw_config_findpatch(char *p_chip_id_str)
+ {
+-	char *p;
++    DIR *dirp;
++    struct dirent *dp;
++    int filenamelen;
++    uchar retval = FALSE;
+ 
+-	if (!(p = strrchr(optarg, '.'))) {
+-		fprintf(stderr, "file %s not an HCD file\n", optarg);
+-		exit(3);
+-	}
++    printf("Target name = [%s]\n", p_chip_id_str);
+ 
+-	p++;
+ 
+-	if (strcasecmp("hcd", p) != 0) {
+-		fprintf(stderr, "file %s not an HCD file\n", optarg);
+-		exit(4);
+-	}
++    if ((dirp = opendir(chip_firmware_path)) != NULL)
++    {
++        /* Fetch next filename in patchfile directory */
++        while ((dp = readdir(dirp)) != NULL)
++        {
++            /* Check if filename starts with chip-id name */
++            if ((strncasecmp(dp->d_name, p_chip_id_str, strlen(p_chip_id_str)) \
++                ) == 0)
++            {
++                /* Check if it has .hcd extenstion */
++                filenamelen = strlen(dp->d_name);
++                if ((filenamelen >= FW_PATCHFILE_EXTENSION_LEN) &&
++                    ((strncasecmp(
++                          &dp->d_name[filenamelen-FW_PATCHFILE_EXTENSION_LEN], \
++                          FW_PATCHFILE_EXTENSION, \
++                          FW_PATCHFILE_EXTENSION_LEN) \
++                     ) == 0))
++                {
++                    printf("Found patchfile: %s/%s\n", \
++                        chip_firmware_path, dp->d_name);
++
++                    /* Make sure length does not exceed maximum */
++                    if ((filenamelen + strlen(chip_firmware_path)) > \
++                         FW_PATCHFILE_PATH_MAXLEN)
++                    {
++                        printf("Invalid patchfile name (too long)\n");
++                    }
++                    else
++                    {
++                        memset(p_chip_id_str, 0, FW_PATCHFILE_PATH_MAXLEN);
++                        /* Found patchfile. Store location and name */
++                        strcpy(p_chip_id_str, chip_firmware_path);
++                        if (chip_firmware_path[ \
++                            strlen(chip_firmware_path)- 1 \
++                            ] != '/')
++                        {
++                            strcat(p_chip_id_str, "/");
++                        }
++                        strcat(p_chip_id_str, dp->d_name);
++                        retval = TRUE;
++                    }
++                    break;
++                }
++            }
++        }
+ 
+-	if ((hcdfile_fd = open(optarg, O_RDONLY)) == -1) {
+-		fprintf(stderr, "file %s could not be opened, error %d\n", optarg, errno);
+-		exit(5);
+-	}
++        closedir(dirp);
+ 
+-	return(0);
++
++    }
++    else
++    {
++        printf("Could not open %s\n", chip_firmware_path);
++    }
++
++    return (retval);
++}
++
++uchar hci_write_uart_clock_setting_48Mhz[] =
++	{ 0x01, 0x45, 0xfc, 0x01, 0x01 };
++
++int
++parse_patchram(char *optarg)
++{
++    /*
++    char *p;
++    if (!(p = strrchr(optarg, '.'))) {
++    fprintf(stderr, "file %s not an HCD file\n", optarg);
++    exit(3);
++    }
++    p++;
++    if (strcasecmp("hcd", p) != 0) {
++    fprintf(stderr, "file %s not an HCD file\n", optarg);
++    exit(4);
++    }
++    */
++    strcpy(chip_firmware_path, optarg);
++    printf("chip fw path %s\n", chip_firmware_path);
++    if(strlen(chip_firmware_path)==0){
++        fprintf(stderr, "firmware path is not set by %s\n", optarg);
++    }
++    /*
++    if ((hcdfile_fd = open(optarg, O_RDONLY)) == -1) {
++    fprintf(stderr, "file %s could not be opened, error %d\n", optarg, errno);
++    exit(5);
++    }
++    */
++    return(0);
+ }
+ 
+ void
+@@ -681,38 +777,40 @@ proc_reset()
+ void
+ proc_patchram()
+ {
+-	int len;
+-
+-	hci_send_cmd(hci_download_minidriver, sizeof(hci_download_minidriver));
+-
+-	read_event(uart_fd, buffer);
+-
+-	if (!no2bytes) {
+-		read(uart_fd, &buffer[0], 2);
+-	}
+-
+-	if (tosleep) {
+-		usleep(tosleep);
+-	}
+-
+-	while (read(hcdfile_fd, &buffer[1], 3)) {
+-		buffer[0] = 0x01;
+-
+-		len = buffer[3];
++    char chip_firmware[512];
++    int len;
++    hci_send_cmd(hci_download_minidriver, sizeof(hci_download_minidriver));
++    read_event(uart_fd, buffer);
++    if (!no2bytes) {
++    read(uart_fd, &buffer[0], 2);
++    }
++    if (tosleep) {
++    usleep(tosleep);
++    }
+ 
+-		read(hcdfile_fd, &buffer[4], len);
++    sprintf(chip_firmware, "%s", chip_name);
+ 
+-		hci_send_cmd(buffer, len + 4);
+ 
+-		read_event(uart_fd, buffer);
+-	}
++    hw_config_findpatch(chip_firmware);
++    printf("fw:%s\n", chip_firmware);
++    if ((hcdfile_fd = open(chip_firmware, O_RDONLY)) == -1) {
++    fprintf(stderr, "fw file %s could not be opened, error %d\n", chip_firmware, errno);
++    exit(5);
++    }
+ 
+-	if (use_baudrate_for_download) {
+-		cfsetospeed(&termios, B115200);
+-		cfsetispeed(&termios, B115200);
+-		tcsetattr(uart_fd, TCSANOW, &termios);
+-	}
+-	proc_reset();
++    while (read(hcdfile_fd, &buffer[1], 3)) {
++    buffer[0] = 0x01;
++    len = buffer[3];
++    read(hcdfile_fd, &buffer[4], len);
++    hci_send_cmd(buffer, len + 4);
++    read_event(uart_fd, buffer);
++    }
++    if (use_baudrate_for_download) {
++    cfsetospeed(&termios, B115200);
++    cfsetispeed(&termios, B115200);
++    tcsetattr(uart_fd, TCSANOW, &termios);
++    }
++    proc_reset();
+ }
+ 
+ void
+@@ -747,6 +845,15 @@ proc_bdaddr()
+ 	read_event(uart_fd, buffer);
+ }
+ 
++void proc_read_chipname()
++{
++    hci_send_cmd(hci_read_local_name, sizeof(hci_read_local_name));
++    read_event(uart_fd, buffer);
++    strcpy(chip_name, buffer+7);
++    printf("bt chip %s is detected\n", chip_name);
++
++}
++
+ void
+ proc_enable_lpm()
+ {
+@@ -903,47 +1010,36 @@ main (int argc, char **argv)
+ 	init_uart();
+ 
+ 	proc_reset();
++    proc_read_chipname();
+ 
+-	if (use_baudrate_for_download) {
+-		if (termios_baudrate) {
+-			proc_baudrate();
+-		}
+-	}
+-
+-	if (hcdfile_fd > 0) {
+-		proc_patchram();
+-	}
+-
+-	if (termios_baudrate) {
+-		proc_baudrate();
+-	}
+-
+-	if (bdaddr_flag) {
+-		proc_bdaddr();
+-	}
+-
+-	if (enable_lpm) {
+-		proc_enable_lpm();
+-	}
+-
+-	if (scopcm) {
+-		proc_scopcm();
+-	}
+-
+-	if (i2s) {
+-		proc_i2s();
+-	}
+-
+-	if (enable_hci) {
+-		proc_enable_hci();
+-
+-		while (1) {
+-			sleep(UINT_MAX);
+-		}
+-	}
+-
+-    if(enable_bt_over_rfkill > 0) {
+-        proc_bluetooth_power(0);
++    if (use_baudrate_for_download) {
++    if (termios_baudrate) {
++        proc_baudrate();
++    }
++    }
++    if (strlen(chip_firmware_path) > 0) {
++    proc_patchram();
++    }
++    if (termios_baudrate) {
++    proc_baudrate();
++    }
++    if (bdaddr_flag) {
++    proc_bdaddr();
++    }
++    if (enable_lpm) {
++    proc_enable_lpm();
++    }
++    if (scopcm) {
++    proc_scopcm();
++    }
++    if (i2s) {
++    proc_i2s();
++    }
++    if (enable_hci) {
++    proc_enable_hci();
++    while (1) {
++        sleep(UINT_MAX);
++    }
+     }
+ 
+ 	exit(0);
+-- 
+2.17.1
+

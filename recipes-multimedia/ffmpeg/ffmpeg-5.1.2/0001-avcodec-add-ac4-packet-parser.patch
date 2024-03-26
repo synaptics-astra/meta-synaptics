@@ -1,0 +1,318 @@
+From 01e9aa33beb0926bcb852facde4cd365ecb1bea9 Mon Sep 17 00:00:00 2001
+From: ztong <Zhe.Tong@synaptics.com>
+Date: Wed, 14 Dec 2022 14:57:39 +0800
+Subject: [PATCH 1/7] avcodec: add ac4 packet parser.
+
+- Impact - libavformat.so libavcodec.so libavutil.so
+- Test cmd - ampclient_samples 2
+  http://10.70.24.92/IOTMMSTREAM/streams/Certification/Dolby/MS12/CIDK-IIDK/Dolby_MS12_Multistream_Decoder_Imp/Test_Materials/Test_Signals/Mp4Files/ChID_6ch_48kHz.ac4.mp4
+- https://jira.synaptics.com/browse/VSSDK-14048
+Original CL: https://sc-debu-git.synaptics.com/gerrit/138244
+
+Change-Id: I351ec4a094ec5f5ab73523d585d9701e19184158
+Reviewed-on: https://gerrit-sha.synaptics.com/gerrit/176778
+Reviewed-by: Zhe Tong <Zhe.Tong@synaptics.com>
+Reviewed-by: Randy Li <Randy.Li@synaptics.com>
+Reviewed-by: Yanyan Peng <Yanyan.Peng@synaptics.com>
+---
+ libavcodec/Makefile     |  2 ++
+ libavcodec/ac4.h        | 49 +++++++++++++++++++++++++++
+ libavcodec/ac4_parser.c | 75 +++++++++++++++++++++++++++++++++++++++++
+ libavcodec/ac4_parser.h | 36 ++++++++++++++++++++
+ libavcodec/codec_desc.c |  7 ++++
+ libavcodec/codec_id.h   |  1 +
+ libavcodec/parsers.c    |  1 +
+ libavformat/isom_tags.c |  1 +
+ libavformat/mov.c       |  7 ++++
+ 9 files changed, 179 insertions(+)
+ create mode 100644 libavcodec/ac4.h
+ create mode 100644 libavcodec/ac4_parser.c
+ create mode 100644 libavcodec/ac4_parser.h
+
+diff --git a/libavcodec/Makefile b/libavcodec/Makefile
+index 457ec58377..96ae6da94d 100644
+--- a/libavcodec/Makefile
++++ b/libavcodec/Makefile
+@@ -2,6 +2,7 @@ NAME = avcodec
+ DESC = FFmpeg codec library
+ 
+ HEADERS = ac3_parser.h                                                  \
++          ac4_parser.h                                                  \
+           adts_parser.h                                                 \
+           avcodec.h                                                     \
+           avdct.h                                                       \
+@@ -28,6 +29,7 @@ HEADERS = ac3_parser.h                                                  \
+           xvmc.h                                                        \
+ 
+ OBJS = ac3_parser.o                                                     \
++       ac4_parser.o                                                     \
+        adts_parser.o                                                    \
+        allcodecs.o                                                      \
+        avcodec.o                                                        \
+diff --git a/libavcodec/ac4.h b/libavcodec/ac4.h
+new file mode 100644
+index 0000000000..414984db50
+--- /dev/null
++++ b/libavcodec/ac4.h
+@@ -0,0 +1,49 @@
++/*
++ * Common code between the AC-4 encoder and decoder
++ * Copyright (c) 2021 Sam Chen <sam.chen@synaptics.com>
++ *
++ * This file is part of FFmpeg.
++ *
++ * FFmpeg is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ *
++ * FFmpeg is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with FFmpeg; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
++ */
++
++/**
++ * @file
++ * Common code between the AC-4 encoder and decoder.
++ */
++
++#ifndef AVCODEC_AC4_H
++#define AVCODEC_AC4_H
++
++typedef struct AC4ParseContext {
++      ParseContext pc;
++      int frame_size;
++      int header_size;
++
++      int channels;
++      int sample_rate;
++      int bit_rate;
++      int samples;
++      uint64_t channel_layout;
++      int service_type;
++
++      int remaining_size;
++      uint64_t state;
++
++      int need_next_header;
++      enum AVCodecID codec_id;
++} AC4ParseContext;
++
++#endif /* AVCODEC_AC4_H */
+diff --git a/libavcodec/ac4_parser.c b/libavcodec/ac4_parser.c
+new file mode 100644
+index 0000000000..f863fb56e6
+--- /dev/null
++++ b/libavcodec/ac4_parser.c
+@@ -0,0 +1,75 @@
++/*
++ * AC-4 parser
++ * Copyright (c) 2003 Fabrice Bellard
++ * Copyright (c) 2003 Michael Niedermayer
++ *
++ * This file is part of FFmpeg.
++ *
++ * FFmpeg is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ *
++ * FFmpeg is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with FFmpeg; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
++ */
++
++#include "config.h"
++
++#include "libavutil/channel_layout.h"
++#include "parser.h"
++#include "get_bits.h"
++#include "ac4.h"
++#include "ac4_parser.h"
++#include "libavutil/mem.h"
++
++int ff_aac_ac4_parse(AVCodecParserContext *s1,
++                       AVCodecContext *avctx,
++                       const uint8_t **poutbuf, int *poutbuf_size,
++                       const uint8_t *buf, int buf_size)
++{
++    uint8_t ac4SyncHeader[7];
++    void *newBuffer;
++    int size;
++
++    if (!buf_size)
++        return 0;
++
++    ac4SyncHeader[0] = 0xAC;
++    ac4SyncHeader[1] = 0x40;
++    ac4SyncHeader[2] = 0xFF;
++    ac4SyncHeader[3] = 0xFF;
++    ac4SyncHeader[4] = (uint8_t) ((buf_size >> 16) & 0xFF);
++    ac4SyncHeader[5] = (uint8_t) ((buf_size >> 8) & 0xFF);
++    ac4SyncHeader[6] = (uint8_t) ((buf_size >> 0) & 0xFF);
++
++    size = buf_size;
++    newBuffer = av_fast_realloc((void *)buf, &buf_size, buf_size + 7);
++    memcpy((uint8_t *)newBuffer + 7, buf, buf_size);
++    memcpy(newBuffer, ac4SyncHeader, 7);
++    *poutbuf = newBuffer;
++    *poutbuf_size = size + 7;
++
++    return (size + 7);
++}
++
++static av_cold int ac4_parse_init(AVCodecParserContext *s1)
++{
++    return 0;
++}
++
++
++AVCodecParser ff_ac4_parser = {
++    .codec_ids      = { AV_CODEC_ID_AC4 },
++    .priv_data_size = sizeof(AC4ParseContext),
++    .parser_init    = ac4_parse_init,
++    .parser_parse   = ff_aac_ac4_parse,
++    .parser_close   = ff_parse_close,
++};
++
+diff --git a/libavcodec/ac4_parser.h b/libavcodec/ac4_parser.h
+new file mode 100644
+index 0000000000..d08c557adc
+--- /dev/null
++++ b/libavcodec/ac4_parser.h
+@@ -0,0 +1,36 @@
++/*
++ * AC-4 parser prototypes
++ * Copyright (c) 2021 Sam Chen
++ *
++ * This file is part of FFmpeg.
++ *
++ * FFmpeg is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ *
++ * FFmpeg is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with FFmpeg; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
++ */
++
++#ifndef AVCODEC_AC4_PARSER_H
++#define AVCODEC_AC4_PARSER_H
++
++#include <stddef.h>
++#include <stdint.h>
++
++/**
++ * Extract the bitstream ID and the frame size from AC-4 data.
++ */
++int ff_aac_ac4_parse(AVCodecParserContext *s1,
++                        AVCodecContext *avctx,
++                        const uint8_t **poutbuf, int *poutbuf_size,
++                        const uint8_t *buf, int buf_size);
++
++#endif /* AVCODEC_AC4_PARSER_H */
+diff --git a/libavcodec/codec_desc.c b/libavcodec/codec_desc.c
+index 44ad2d1fe8..5af6281fe6 100644
+--- a/libavcodec/codec_desc.c
++++ b/libavcodec/codec_desc.c
+@@ -2620,6 +2620,13 @@ static const AVCodecDescriptor codec_descriptors[] = {
+         .long_name = NULL_IF_CONFIG_SMALL("ATSC A/52A (AC-3)"),
+         .props     = AV_CODEC_PROP_INTRA_ONLY | AV_CODEC_PROP_LOSSY,
+     },
++    {
++        .id        = AV_CODEC_ID_AC4,
++        .type      = AVMEDIA_TYPE_AUDIO,
++        .name      = "ac4",
++        .long_name = NULL_IF_CONFIG_SMALL("(AC-4)"),
++        .props     = AV_CODEC_PROP_LOSSY,
++    },
+     {
+         .id        = AV_CODEC_ID_DTS,
+         .type      = AVMEDIA_TYPE_AUDIO,
+diff --git a/libavcodec/codec_id.h b/libavcodec/codec_id.h
+index 81fb316cff..0e719548d2 100644
+--- a/libavcodec/codec_id.h
++++ b/libavcodec/codec_id.h
+@@ -428,6 +428,7 @@ enum AVCodecID {
+     AV_CODEC_ID_MP3, ///< preferred ID for decoding MPEG audio layer 1, 2 or 3
+     AV_CODEC_ID_AAC,
+     AV_CODEC_ID_AC3,
++    AV_CODEC_ID_AC4,
+     AV_CODEC_ID_DTS,
+     AV_CODEC_ID_VORBIS,
+     AV_CODEC_ID_DVAUDIO,
+diff --git a/libavcodec/parsers.c b/libavcodec/parsers.c
+index b59388835d..ffb6df4187 100644
+--- a/libavcodec/parsers.c
++++ b/libavcodec/parsers.c
+@@ -23,6 +23,7 @@
+ extern const AVCodecParser ff_aac_parser;
+ extern const AVCodecParser ff_aac_latm_parser;
+ extern const AVCodecParser ff_ac3_parser;
++extern const AVCodecParser ff_ac4_parser;
+ extern const AVCodecParser ff_adx_parser;
+ extern const AVCodecParser ff_amr_parser;
+ extern const AVCodecParser ff_av1_parser;
+diff --git a/libavformat/isom_tags.c b/libavformat/isom_tags.c
+index c5fd7987f6..4c8a75d027 100644
+--- a/libavformat/isom_tags.c
++++ b/libavformat/isom_tags.c
+@@ -281,6 +281,7 @@ const AVCodecTag ff_codec_movaudio_tags[] = {
+     { AV_CODEC_ID_AAC,             MKTAG('m', 'p', '4', 'a') },
+     { AV_CODEC_ID_AC3,             MKTAG('a', 'c', '-', '3') }, /* ETSI TS 102 366 Annex F */
+     { AV_CODEC_ID_AC3,             MKTAG('s', 'a', 'c', '3') }, /* Nero Recode */
++    { AV_CODEC_ID_AC4,             MKTAG('a', 'c', '-', '4') },
+     { AV_CODEC_ID_ADPCM_IMA_QT,    MKTAG('i', 'm', 'a', '4') },
+     { AV_CODEC_ID_ALAC,            MKTAG('a', 'l', 'a', 'c') },
+     { AV_CODEC_ID_AMR_NB,          MKTAG('s', 'a', 'm', 'r') }, /* AMR-NB 3gp */
+diff --git a/libavformat/mov.c b/libavformat/mov.c
+index 2b1131b911..627a2601ec 100644
+--- a/libavformat/mov.c
++++ b/libavformat/mov.c
+@@ -829,6 +829,11 @@ static int mov_read_dac3(MOVContext *c, AVIOContext *pb, MOVAtom atom)
+     return 0;
+ }
+ 
++static int mov_read_dac4(MOVContext *c, AVIOContext *pb, MOVAtom atom)
++{
++    return 0;
++}
++
+ static int mov_read_dec3(MOVContext *c, AVIOContext *pb, MOVAtom atom)
+ {
+     AVStream *st;
+@@ -2491,6 +2496,7 @@ static int mov_finalize_stsd_codec(MOVContext *c, AVIOContext *pb,
+         break;
+     case AV_CODEC_ID_AC3:
+     case AV_CODEC_ID_EAC3:
++    case AV_CODEC_ID_AC4:
+     case AV_CODEC_ID_MPEG1VIDEO:
+     case AV_CODEC_ID_VC1:
+     case AV_CODEC_ID_VP8:
+@@ -7646,6 +7652,7 @@ static const MOVParseTableEntry mov_default_parse_table[] = {
+ { MKTAG('e','s','d','s'), mov_read_esds },
+ { MKTAG('d','a','c','3'), mov_read_dac3 }, /* AC-3 info */
+ { MKTAG('d','e','c','3'), mov_read_dec3 }, /* EAC-3 info */
++{ MKTAG('d','a','c','4'), mov_read_dac4 }, /* AC-4 info */
+ { MKTAG('d','d','t','s'), mov_read_ddts }, /* DTS audio descriptor */
+ { MKTAG('w','i','d','e'), mov_read_wide }, /* place holder */
+ { MKTAG('w','f','e','x'), mov_read_wfex },
+-- 
+2.17.1
+

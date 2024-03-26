@@ -1,0 +1,37 @@
+From 5dd981324ab578e738a543e9d50ce44442caabcd Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Sun, 12 Feb 2023 00:36:29 +0000
+Subject: [PATCH 147/168] zink: fix compute shader leaks
+
+Compute program owns the nir and zink shaders now and must free them
+too when destroyed.
+
+Fixes: 4cb4bb555e7 ("zink: create compute programs from compute shaders directly")
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/21285>
+---
+ src/gallium/drivers/zink/zink_program.c | 9 +++++++--
+ 1 file changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/src/gallium/drivers/zink/zink_program.c b/src/gallium/drivers/zink/zink_program.c
+index 98a3ddeff41..14a21d6b901 100644
+--- a/src/gallium/drivers/zink/zink_program.c
++++ b/src/gallium/drivers/zink/zink_program.c
+@@ -1243,8 +1243,13 @@ zink_destroy_compute_program(struct zink_screen *screen,
+ {
+    deinit_program(screen, &comp->base);
+ 
+-   if (comp->shader)
+-      _mesa_set_remove_key(comp->shader->programs, comp);
++   assert(comp->shader);
++   assert(!comp->shader->spirv);
++
++   _mesa_set_destroy(comp->shader->programs, NULL);
++   ralloc_free(comp->shader->nir);
++   ralloc_free(comp->shader);
++
+    destroy_shader_cache(screen, &comp->shader_cache[0]);
+    destroy_shader_cache(screen, &comp->shader_cache[1]);
+ 
+-- 
+2.17.1
+

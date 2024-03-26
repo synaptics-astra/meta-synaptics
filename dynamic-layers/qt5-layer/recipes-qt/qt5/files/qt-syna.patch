@@ -1,0 +1,30 @@
+diff -Naur a/mkspecs/devices/linux-arm-synaptics-egl/qmake.conf b/mkspecs/devices/linux-arm-synaptics-egl/qmake.conf
+--- a/mkspecs/devices/linux-arm-synaptics-egl/qmake.conf
++++ b/mkspecs/devices/linux-arm-synaptics-egl/qmake.conf
+@@ -0,0 +1,20 @@
++#
++# qmake configuration for Synaptics SoC
++#
++
++include(../common/linux_device_pre.conf)
++
++QMAKE_LIBS += -lrt
++
++QMAKE_LIBS_EGL += -lEGL
++QMAKE_LIBS_OPENGL_ES2 += -lGLESv2
++QMAKE_LIBS_OPENVG     += -lOpenVG
++
++DISTRO_OPTS += hard-float
++
++# Preferred eglfs backend
++EGLFS_DEVICE_INTEGRATION = eglfs_kms
++
++include(../common/linux_arm_device_post.conf)
++
++load(qt_config)
+diff -Naur a/mkspecs/devices/linux-arm-synaptics-egl/qplatformdefs.h b/mkspecs/devices/linux-arm-synaptics-egl/qplatformdefs.h
+--- a/mkspecs/devices/linux-arm-synaptics-egl/qplatformdefs.h
++++ b/mkspecs/devices/linux-arm-synaptics-egl/qplatformdefs.h
+@@ -0,0 +1,2 @@
++
++#include "../../linux-g++/qplatformdefs.h"

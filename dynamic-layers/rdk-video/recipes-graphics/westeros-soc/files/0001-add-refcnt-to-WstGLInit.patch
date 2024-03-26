@@ -1,0 +1,28 @@
+diff --git a/westeros-gl/westeros-gl.c b/westeros-gl/westeros-gl.c
+index e96f4386..00216340 100644
+--- a/westeros-gl/westeros-gl.c
++++ b/westeros-gl/westeros-gl.c
+@@ -2633,11 +2633,7 @@ WstGLCtx* WstGLInit()
+    #endif
+ 
+    pthread_mutex_lock( &gMutex );
+-   if( gCtx != NULL )
+-   {
+-      ++gCtx->refCnt;
+-      ctx= gCtx;
+-   }
++   ctx= gCtx;
+    if ( !ctx )
+    {
+       ctx= wstInitCtx();
+@@ -2646,6 +2642,10 @@ WstGLCtx* WstGLInit()
+          gCtx= ctx;
+       }
+    }
++   if( gCtx != NULL )
++   {
++      ++gCtx->refCnt;
++   }
+    pthread_mutex_unlock( &gMutex );
+ 
+ exit:

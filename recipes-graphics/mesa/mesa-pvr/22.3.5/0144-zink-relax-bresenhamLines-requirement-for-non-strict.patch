@@ -1,0 +1,188 @@
+From 4a3871417d26c9f2d214b49930886a0e16f05f69 Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Thu, 10 Nov 2022 22:46:49 +0000
+Subject: [PATCH 144/168] zink: relax bresenhamLines requirement for
+ non-strictLine drivers
+
+non-strictLine Vulkan drivers use either parallelogram or bresenham
+rasterization for default line modes.
+This method of rasterisation produces close enough results that it
+in practice is GL/GLES spec compliant (at least cts wise).
+Don't emit a feature missing warning for this case.
+
+cc: mesa-stable
+
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/20985>
+---
+ .../drivers/zink/VP_ZINK_requirements.json    | 37 +++++++++++++++----
+ src/gallium/drivers/zink/zink_pipeline.c      |  7 +++-
+ 2 files changed, 35 insertions(+), 9 deletions(-)
+
+diff --git a/src/gallium/drivers/zink/VP_ZINK_requirements.json b/src/gallium/drivers/zink/VP_ZINK_requirements.json
+index 8bd5eb85d40..ab41389f08b 100644
+--- a/src/gallium/drivers/zink/VP_ZINK_requirements.json
++++ b/src/gallium/drivers/zink/VP_ZINK_requirements.json
+@@ -33,12 +33,6 @@
+                 },
+                 "VkPhysicalDeviceLineRasterizationFeaturesEXT": {
+                     "rectangularLines": true,
+-                    "bresenhamLines": true
+-                }
+-            },
+-            "properties": {
+-                "VkPhysicalDeviceProperties": {
+-
+                 }
+             }
+         },
+@@ -59,6 +53,22 @@
+                 }
+             }
+         },
++        "gl21_baseline_line_bresenham": {
++        	"features": {
++                "VkPhysicalDeviceLineRasterizationFeaturesEXT": {
++                    "bresenhamLines": true
++                }
++            }
++        },
++        "gl21_baseline_line_non_strict": {
++        	"properties": {
++                "VkPhysicalDeviceProperties": {
++                    "limits": {
++                        "strictLines": false
++                    }
++                }
++            }
++        },
+         "gl21_optional": {
+             "extensions": {
+                 "VK_KHR_external_memory": 1
+@@ -576,7 +586,8 @@
+             "capabilities": [
+                 "vulkan10requirements",
+                 "gl21_baseline",
+-                [ "gl21_baseline_vk10", "gl21_baseline_vk12" ]
++                [ "gl21_baseline_vk10", "gl21_baseline_vk12" ],
++                [ "gl21_baseline_line_bresenham", "gl21_baseline_line_non_strict" ]
+             ]
+         },
+         "VP_ZINK_gl30_baseline": {
+@@ -588,6 +599,7 @@
+                 "vulkan10requirements",
+                 "gl21_baseline",
+                 [ "gl21_baseline_vk10", "gl21_baseline_vk12" ],
++                [ "gl21_baseline_line_bresenham", "gl21_baseline_line_non_strict" ],
+                 "gl30_baseline"
+             ]
+         },
+@@ -600,6 +612,7 @@
+                 "vulkan10requirements",
+                 "gl21_baseline",
+                 [ "gl21_baseline_vk10", "gl21_baseline_vk12" ],
++                [ "gl21_baseline_line_bresenham", "gl21_baseline_line_non_strict" ],
+                 "gl30_baseline",
+                 "gl31_baseline"
+             ]
+@@ -613,6 +626,7 @@
+                 "vulkan10requirements",
+                 "gl21_baseline",
+                 [ "gl21_baseline_vk10", "gl21_baseline_vk12" ],
++                [ "gl21_baseline_line_bresenham", "gl21_baseline_line_non_strict" ],
+                 "gl30_baseline",
+                 "gl31_baseline",
+                 "gl32_baseline"
+@@ -627,6 +641,7 @@
+                 "vulkan10requirements",
+                 "gl21_baseline",
+                 [ "gl21_baseline_vk10", "gl21_baseline_vk12" ],
++                [ "gl21_baseline_line_bresenham", "gl21_baseline_line_non_strict" ],
+                 "gl30_baseline",
+                 "gl31_baseline",
+                 "gl32_baseline",
+@@ -642,6 +657,7 @@
+                 "vulkan10requirements",
+                 "gl21_baseline",
+                 [ "gl21_baseline_vk10", "gl21_baseline_vk12" ],
++                [ "gl21_baseline_line_bresenham", "gl21_baseline_line_non_strict" ],
+                 "gl30_baseline",
+                 "gl31_baseline",
+                 "gl32_baseline",
+@@ -658,6 +674,7 @@
+                 "vulkan10requirements",
+                 "gl21_baseline",
+                 [ "gl21_baseline_vk10", "gl21_baseline_vk12" ],
++                [ "gl21_baseline_line_bresenham", "gl21_baseline_line_non_strict" ],
+                 "gl30_baseline",
+                 "gl31_baseline",
+                 "gl32_baseline",
+@@ -675,6 +692,7 @@
+                 "vulkan10requirements",
+                 "gl21_baseline",
+                 [ "gl21_baseline_vk10", "gl21_baseline_vk12" ],
++                [ "gl21_baseline_line_bresenham", "gl21_baseline_line_non_strict" ],
+                 "gl30_baseline",
+                 "gl31_baseline",
+                 "gl32_baseline",
+@@ -694,6 +712,7 @@
+                 "vulkan10requirements",
+                 "gl21_baseline",
+                 [ "gl21_baseline_vk10", "gl21_baseline_vk12" ],
++                [ "gl21_baseline_line_bresenham", "gl21_baseline_line_non_strict" ],
+                 "gl30_baseline",
+                 "gl31_baseline",
+                 "gl32_baseline",
+@@ -715,6 +734,7 @@
+                 "vulkan10requirements",
+                 "gl21_baseline",
+                 [ "gl21_baseline_vk10", "gl21_baseline_vk12" ],
++                [ "gl21_baseline_line_bresenham", "gl21_baseline_line_non_strict" ],
+                 "gl30_baseline",
+                 "gl31_baseline",
+                 "gl32_baseline",
+@@ -737,6 +757,7 @@
+                 "vulkan10requirements",
+                 "gl21_baseline",
+                 [ "gl21_baseline_vk10", "gl21_baseline_vk12" ],
++                [ "gl21_baseline_line_bresenham", "gl21_baseline_line_non_strict" ],
+                 "gl30_baseline",
+                 "gl31_baseline",
+                 "gl32_baseline",
+@@ -760,6 +781,7 @@
+                 "vulkan10requirements",
+                 "gl21_baseline",
+                 [ "gl21_baseline_vk10", "gl21_baseline_vk12" ],
++                [ "gl21_baseline_line_bresenham", "gl21_baseline_line_non_strict" ],
+                 "gl30_baseline",
+                 "gl31_baseline",
+                 "gl32_baseline",
+@@ -784,6 +806,7 @@
+                 "vulkan10requirements",
+                 "gl21_baseline",
+                 [ "gl21_baseline_vk10", "gl21_baseline_vk12" ],
++                [ "gl21_baseline_line_bresenham", "gl21_baseline_line_non_strict" ],
+                 "gl30_baseline",
+                 "gl31_baseline",
+                 "gl32_baseline",
+diff --git a/src/gallium/drivers/zink/zink_pipeline.c b/src/gallium/drivers/zink/zink_pipeline.c
+index e7e0e567175..0e30e4eac80 100644
+--- a/src/gallium/drivers/zink/zink_pipeline.c
++++ b/src/gallium/drivers/zink/zink_pipeline.c
+@@ -301,9 +301,12 @@ zink_create_gfx_pipeline(struct zink_screen *screen,
+             mode_idx -= hw_rast_state->line_stipple_enable * 3;
+             if (*(feat + mode_idx))
+                rast_line_state.lineRasterizationMode = hw_rast_state->line_mode;
+-            else
++            /* non-strictLine default lines are either parallelogram or bresenham which while not in GL spec,
++             * in practice end up being within the two-pixel exception in the GL spec.
++             */
++            else if (mode_idx || screen->info.props.limits.strictLines)
+                warn_missing_feature(warned[mode_idx], features[hw_rast_state->line_mode][0]);
+-         } else
++         } else if (mode_idx || screen->info.props.limits.strictLines)
+             warn_missing_feature(warned[mode_idx], features[hw_rast_state->line_mode][hw_rast_state->line_stipple_enable]);
+       }
+ 
+-- 
+2.17.1
+

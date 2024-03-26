@@ -1,0 +1,153 @@
+From 66c8225ea81814746cd21fa9949cae112ccbb845 Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Thu, 5 Jan 2023 16:34:18 -0500
+Subject: [PATCH 136/168] zink: add a fs shader key member to indicate depth
+ texturing mode
+
+this does nothing now besides track the data
+
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/20598>
+---
+ src/gallium/drivers/zink/zink_context.c       | 21 +++++++++++++++++++
+ src/gallium/drivers/zink/zink_program.c       |  1 +
+ src/gallium/drivers/zink/zink_program.h       |  9 ++++++++
+ .../drivers/zink/zink_program_state.hpp       |  2 ++
+ src/gallium/drivers/zink/zink_shader_keys.h   |  3 ++-
+ src/gallium/drivers/zink/zink_types.h         |  3 +++
+ 6 files changed, 38 insertions(+), 1 deletion(-)
+
+diff --git a/src/gallium/drivers/zink/zink_context.c b/src/gallium/drivers/zink/zink_context.c
+index ab5abc94d63..7dea60a0a96 100644
+--- a/src/gallium/drivers/zink/zink_context.c
++++ b/src/gallium/drivers/zink/zink_context.c
+@@ -1840,6 +1840,7 @@ zink_set_sampler_views(struct pipe_context *pctx,
+    ctx->di.cubes[shader_type] &= ~mask;
+ 
+    bool update = false;
++   bool shadow_update = false;
+    for (i = 0; i < num_views; ++i) {
+       struct pipe_sampler_view *pview = views ? views[i] : NULL;
+       struct zink_sampler_view *a = zink_sampler_view(ctx->sampler_views[shader_type][start_slot + i]);
+@@ -1894,12 +1895,27 @@ zink_set_sampler_views(struct pipe_context *pctx,
+                update = true;
+             zink_batch_resource_usage_set(&ctx->batch, res, false, false);
+             res->obj->unordered_write = false;
++            if (b->shadow_needs_shader_swizzle) {
++               assert(start_slot + i < 32); //bitfield size
++               ctx->di.shadow.mask |= BITFIELD_BIT(start_slot + i);
++               /* this is already gonna be slow, so don't bother trying to micro-optimize */
++               shadow_update |= memcmp(&ctx->di.shadow.swizzle[start_slot + i],
++                                       &b->swizzle, sizeof(struct zink_fs_shadow_swizzle));
++               memcpy(&ctx->di.shadow.swizzle[start_slot + i], &b->swizzle, sizeof(struct zink_fs_shadow_swizzle));
++            } else if (ctx->di.shadow.mask) {
++               assert(start_slot + i < 32); //bitfield size
++               ctx->di.shadow.mask &= ~BITFIELD_BIT(start_slot + i);
++            }
+          }
+          res->sampler_binds[shader_type] |= BITFIELD_BIT(start_slot + i);
+          res->obj->unordered_read = false;
+       } else if (a) {
+          unbind_samplerview(ctx, shader_type, start_slot + i);
+          update = true;
++         if (ctx->di.shadow.mask) {
++            assert(start_slot + i < 32); //bitfield size
++            ctx->di.shadow.mask &= ~BITFIELD_BIT(start_slot + i);
++         }
+       }
+       if (take_ownership) {
+          pipe_sampler_view_reference(&ctx->sampler_views[shader_type][start_slot + i], NULL);
+@@ -1916,6 +1932,10 @@ zink_set_sampler_views(struct pipe_context *pctx,
+          &ctx->sampler_views[shader_type][start_slot + i],
+          NULL);
+       update_descriptor_state_sampler(ctx, shader_type, start_slot + i, NULL);
++      if (ctx->di.shadow.mask) {
++         assert(start_slot + i < 32); //bitfield size
++         ctx->di.shadow.mask &= ~BITFIELD_BIT(start_slot + i);
++      }
+    }
+    ctx->di.num_sampler_views[shader_type] = start_slot + num_views;
+    if (update) {
+@@ -1923,6 +1943,7 @@ zink_set_sampler_views(struct pipe_context *pctx,
+       zink_context_invalidate_descriptor_state(ctx, shader_type, ZINK_DESCRIPTOR_TYPE_SAMPLER_VIEW, start_slot, num_views);
+       if (!screen->info.have_EXT_non_seamless_cube_map)
+          update_nonseamless_shader_key(ctx, shader_type);
++      zink_set_fs_shadow_needs_shader_swizzle_key(ctx, shadow_update);
+    }
+ }
+ 
+diff --git a/src/gallium/drivers/zink/zink_program.c b/src/gallium/drivers/zink/zink_program.c
+index f8b4c190898..f0640617b63 100644
+--- a/src/gallium/drivers/zink/zink_program.c
++++ b/src/gallium/drivers/zink/zink_program.c
+@@ -1484,6 +1484,7 @@ zink_bind_fs_state(struct pipe_context *pctx,
+             ctx->gfx_pipeline_state.dirty = true;
+          ctx->gfx_pipeline_state.rast_attachment_order = nir->info.fs.uses_fbfetch_output;
+       }
++      zink_set_fs_shadow_needs_shader_swizzle_key(ctx, false);
+    }
+    zink_update_fbfetch(ctx);
+ }
+diff --git a/src/gallium/drivers/zink/zink_program.h b/src/gallium/drivers/zink/zink_program.h
+index 0e76b8b2590..f8f0b0777c7 100644
+--- a/src/gallium/drivers/zink/zink_program.h
++++ b/src/gallium/drivers/zink/zink_program.h
+@@ -355,6 +355,15 @@ zink_set_fs_point_coord_key(struct zink_context *ctx)
+    }
+ }
+ 
++static inline void
++zink_set_fs_shadow_needs_shader_swizzle_key(struct zink_context *ctx, bool swizzle_update)
++{
++   const struct zink_fs_key_base *fs = zink_get_fs_base_key(ctx);
++   bool enable = ctx->gfx_stages[MESA_SHADER_FRAGMENT] && (ctx->gfx_stages[MESA_SHADER_FRAGMENT]->fs.legacy_shadow_mask & ctx->di.shadow.mask) > 0;
++   if (enable != fs->shadow_needs_shader_swizzle || (enable && swizzle_update))
++      zink_set_fs_base_key(ctx)->shadow_needs_shader_swizzle = enable;
++}
++
+ void
+ zink_set_primitive_emulation_keys(struct zink_context *ctx);
+ 
+diff --git a/src/gallium/drivers/zink/zink_program_state.hpp b/src/gallium/drivers/zink/zink_program_state.hpp
+index 3111a7a277a..0a5a40bf98c 100644
+--- a/src/gallium/drivers/zink/zink_program_state.hpp
++++ b/src/gallium/drivers/zink/zink_program_state.hpp
+@@ -251,6 +251,8 @@ zink_get_gfx_pipeline(struct zink_context *ctx,
+       if (HAVE_LIB &&
+           /* TODO: if there's ever a dynamic render extension with input attachments */
+           !ctx->gfx_pipeline_state.render_pass &&
++          /* this is just terrible */
++          !zink_get_fs_base_key(ctx)->shadow_needs_shader_swizzle &&
+           /* TODO: is sample shading even possible to handle with GPL? */
+           !ctx->gfx_stages[MESA_SHADER_FRAGMENT]->nir->info.fs.uses_sample_shading &&
+           !zink_get_fs_base_key(ctx)->fbfetch_ms &&
+diff --git a/src/gallium/drivers/zink/zink_shader_keys.h b/src/gallium/drivers/zink/zink_shader_keys.h
+index b11ab0c03d8..ccc160f0d2d 100644
+--- a/src/gallium/drivers/zink/zink_shader_keys.h
++++ b/src/gallium/drivers/zink/zink_shader_keys.h
+@@ -82,7 +82,8 @@ struct zink_fs_key_base {
+    bool force_dual_color_blend : 1;
+    bool force_persample_interp : 1;
+    bool fbfetch_ms : 1;
+-   uint8_t pad : 3;
++   bool shadow_needs_shader_swizzle : 1; //append zink_fs_shadow_key after the key data
++   uint8_t pad : 2;
+    uint8_t coord_replace_bits;
+ };
+ 
+diff --git a/src/gallium/drivers/zink/zink_types.h b/src/gallium/drivers/zink/zink_types.h
+index 2e8cb1aae25..7e732f12c69 100644
+--- a/src/gallium/drivers/zink/zink_types.h
++++ b/src/gallium/drivers/zink/zink_types.h
+@@ -1652,6 +1652,9 @@ struct zink_context {
+ 
+       VkDescriptorImageInfo fbfetch;
+ 
++      /* the current state of the shadow swizzle data */
++      struct zink_fs_shadow_key shadow;
++
+       struct zink_resource *descriptor_res[ZINK_DESCRIPTOR_BASE_TYPES][MESA_SHADER_STAGES][PIPE_MAX_SAMPLERS];
+ 
+       struct {
+-- 
+2.17.1
+

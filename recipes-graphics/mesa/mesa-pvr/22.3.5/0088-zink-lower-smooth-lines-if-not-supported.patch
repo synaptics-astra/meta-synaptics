@@ -1,0 +1,215 @@
+From 17b509cee23cad5e104a02274cfbeeacc24123f7 Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Tue, 6 Dec 2022 08:54:34 +0100
+Subject: [PATCH 088/168] zink: lower smooth-lines if not supported
+
+This implements line-smoothing the same way as the draw-module does,
+except using a geometry shader instead of a CPU pass.
+
+Ideally, this should be enabled either by checking for the various
+smooth-line caps, or by a DRIconf setting.
+
+Unfortunately, RADV doesn't support he smooth-lines features, and we
+don't want to force it down a pessimistic shader-key code-path. So that
+plan is out the window for now.
+
+While DRIconf is also neat, it's a bit of work to wire up, and we don't
+really know of any real-world applications who would need this yet. So,
+for now, let's just unconditionally enable is on the IMG proprietary
+driver, which is going to need this for sure.
+
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/19847>
+---
+ src/gallium/drivers/zink/zink_compiler.c    | 13 +++++++++++++
+ src/gallium/drivers/zink/zink_draw.cpp      | 19 +++++++++++++++++--
+ src/gallium/drivers/zink/zink_pipeline.c    |  3 ++-
+ src/gallium/drivers/zink/zink_program.c     | 14 +++++++++++++-
+ src/gallium/drivers/zink/zink_screen.c      |  7 +++++++
+ src/gallium/drivers/zink/zink_shader_keys.h |  4 +++-
+ src/gallium/drivers/zink/zink_state.c       |  3 ++-
+ src/gallium/drivers/zink/zink_types.h       |  1 +
+ 8 files changed, 58 insertions(+), 6 deletions(-)
+
+diff --git a/src/gallium/drivers/zink/zink_compiler.c b/src/gallium/drivers/zink/zink_compiler.c
+index 6a783a78d26..3a635259ee5 100644
+--- a/src/gallium/drivers/zink/zink_compiler.c
++++ b/src/gallium/drivers/zink/zink_compiler.c
+@@ -2826,6 +2826,13 @@ zink_shader_compile(struct zink_screen *screen, struct zink_shader *zs, nir_shad
+                NIR_PASS_V(nir, nir_lower_var_copies);
+                need_optimize = true;
+             }
++
++            if (zink_gs_key(key)->lower_line_smooth) {
++               NIR_PASS_V(nir, lower_line_smooth_gs);
++               NIR_PASS_V(nir, nir_lower_var_copies);
++               need_optimize = true;
++            }
++
+             if (zink_gs_key(key)->lower_gl_point) {
+                NIR_PASS_V(nir, lower_gl_point_gs);
+                need_optimize = true;
+@@ -2856,6 +2863,12 @@ zink_shader_compile(struct zink_screen *screen, struct zink_shader *zs, nir_shad
+       case MESA_SHADER_FRAGMENT:
+          if (zink_fs_key(key)->lower_line_stipple)
+             NIR_PASS_V(nir, lower_line_stipple_fs);
++
++         if (zink_fs_key(key)->lower_line_smooth) {
++            NIR_PASS_V(nir, lower_line_smooth_fs);
++            need_optimize = true;
++         }
++
+          if (!zink_fs_key(key)->samples &&
+             nir->info.outputs_written & BITFIELD64_BIT(FRAG_RESULT_SAMPLE_MASK)) {
+             /* VK will always use gl_SampleMask[] values even if sample count is 0,
+diff --git a/src/gallium/drivers/zink/zink_draw.cpp b/src/gallium/drivers/zink/zink_draw.cpp
+index 72f6c404766..aea345d379b 100644
+--- a/src/gallium/drivers/zink/zink_draw.cpp
++++ b/src/gallium/drivers/zink/zink_draw.cpp
+@@ -804,8 +804,14 @@ zink_draw(struct pipe_context *pctx,
+                          &ctx->tess_levels[0]);
+    }
+    if (zink_get_fs_key(ctx)->lower_line_stipple ||
+-       zink_get_gs_key(ctx)->lower_gl_point) {
+-      assert(zink_get_fs_key(ctx)->lower_line_stipple == zink_get_gs_key(ctx)->lower_line_stipple);
++       zink_get_gs_key(ctx)->lower_gl_point ||
++       zink_get_fs_key(ctx)->lower_line_smooth) {
++
++      assert(zink_get_gs_key(ctx)->lower_line_stipple ==
++             zink_get_fs_key(ctx)->lower_line_stipple);
++
++      assert(zink_get_gs_key(ctx)->lower_line_smooth ==
++             zink_get_fs_key(ctx)->lower_line_smooth);
+ 
+       float viewport_scale[2] = {
+          ctx->vp_state.viewport_states[0].scale[0],
+@@ -824,6 +830,15 @@ zink_draw(struct pipe_context *pctx,
+                               VK_SHADER_STAGE_ALL_GRAPHICS,
+                               offsetof(struct zink_gfx_push_constant, line_stipple_pattern),
+                               sizeof(uint32_t), &stipple);
++
++      if (ctx->gfx_pipeline_state.shader_keys.key[MESA_SHADER_FRAGMENT].key.fs.lower_line_smooth) {
++         float line_width = ctx->rast_state->base.line_width;
++         VKCTX(CmdPushConstants)(batch->state->cmdbuf,
++                                 ctx->curr_program->base.layout,
++                                 VK_SHADER_STAGE_ALL_GRAPHICS,
++                                 offsetof(struct zink_gfx_push_constant, line_width),
++                                 sizeof(uint32_t), &line_width);
++      }
+    }
+ 
+    if (have_streamout) {
+diff --git a/src/gallium/drivers/zink/zink_pipeline.c b/src/gallium/drivers/zink/zink_pipeline.c
+index 0af7fd4b34f..731288a83f9 100644
+--- a/src/gallium/drivers/zink/zink_pipeline.c
++++ b/src/gallium/drivers/zink/zink_pipeline.c
+@@ -270,7 +270,8 @@ zink_create_gfx_pipeline(struct zink_screen *screen,
+    assert(state->rast_prim != PIPE_PRIM_MAX);
+ 
+    VkPipelineRasterizationLineStateCreateInfoEXT rast_line_state;
+-   if (screen->info.have_EXT_line_rasterization) {
++   if (screen->info.have_EXT_line_rasterization &&
++       !state->shader_keys.key[MESA_SHADER_FRAGMENT].key.fs.lower_line_smooth) {
+       rast_line_state.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_LINE_STATE_CREATE_INFO_EXT;
+       rast_line_state.pNext = rast_state.pNext;
+       rast_line_state.stippledLineEnable = VK_FALSE;
+diff --git a/src/gallium/drivers/zink/zink_program.c b/src/gallium/drivers/zink/zink_program.c
+index a90e13e202a..60865ca5462 100644
+--- a/src/gallium/drivers/zink/zink_program.c
++++ b/src/gallium/drivers/zink/zink_program.c
+@@ -1879,7 +1879,19 @@ zink_set_primitive_emulation_keys(struct zink_context *ctx)
+       zink_set_gs_key(ctx)->lower_line_stipple = lower_line_stipple;
+    }
+ 
+-   if (lower_line_stipple || zink_get_gs_key(ctx)->lower_gl_point) {
++   bool lower_line_smooth = screen->driver_workarounds.no_linesmooth &&
++                            ctx->rast_state->base.line_smooth &&
++                            !ctx->num_so_targets;
++
++   if (zink_get_fs_key(ctx)->lower_line_smooth != lower_line_smooth) {
++      assert(zink_get_gs_key(ctx)->lower_line_smooth ==
++             zink_get_fs_key(ctx)->lower_line_smooth);
++      zink_set_fs_key(ctx)->lower_line_smooth = lower_line_smooth;
++      zink_set_gs_key(ctx)->lower_line_smooth = lower_line_smooth;
++   }
++
++   if (lower_line_stipple || lower_line_smooth ||
++       zink_get_gs_key(ctx)->lower_gl_point) {
+       enum pipe_shader_type prev_vertex_stage =
+          ctx->gfx_stages[MESA_SHADER_TESS_EVAL] ?
+             MESA_SHADER_TESS_EVAL : MESA_SHADER_VERTEX;
+diff --git a/src/gallium/drivers/zink/zink_screen.c b/src/gallium/drivers/zink/zink_screen.c
+index a200244a07d..c0ba0861fe1 100644
+--- a/src/gallium/drivers/zink/zink_screen.c
++++ b/src/gallium/drivers/zink/zink_screen.c
+@@ -2355,6 +2355,12 @@ init_driver_workarounds(struct zink_screen *screen)
+       screen->driver_workarounds.no_linestipple = true;
+    }
+ 
++   if (screen->info.driver_props.driverID ==
++       VK_DRIVER_ID_IMAGINATION_PROPRIETARY) {
++      assert(screen->info.feats.features.geometryShader);
++      screen->driver_workarounds.no_linesmooth = true;
++   }
++
+    /* This is a workarround for the lack of
+     * gl_PointSize + glPolygonMode(..., GL_LINE), in the imagination
+     * proprietary driver.
+@@ -2739,6 +2745,7 @@ zink_internal_create_screen(const struct pipe_screen_config *config)
+                           screen->info.have_EXT_non_seamless_cube_map &&
+                           !screen->driconf.inline_uniforms &&
+                           !screen->driver_workarounds.no_linestipple &&
++                          !screen->driver_workarounds.no_linesmooth &&
+                           !screen->driver_workarounds.no_hw_gl_point;
+    if (!screen->optimal_keys)
+       screen->info.have_EXT_graphics_pipeline_library = false;
+diff --git a/src/gallium/drivers/zink/zink_shader_keys.h b/src/gallium/drivers/zink/zink_shader_keys.h
+index afdf10a1177..6c6a18aadda 100644
+--- a/src/gallium/drivers/zink/zink_shader_keys.h
++++ b/src/gallium/drivers/zink/zink_shader_keys.h
+@@ -60,6 +60,7 @@ struct zink_gs_key {
+    struct zink_vs_key_base base;
+    uint8_t pad;
+    bool lower_line_stipple : 1;
++   bool lower_line_smooth : 1;
+    bool lower_gl_point : 1;
+    // not hashed
+    unsigned size;
+@@ -72,7 +73,8 @@ struct zink_fs_key {
+    bool force_persample_interp : 1;
+    bool fbfetch_ms : 1;
+    bool lower_line_stipple : 1;
+-   uint8_t pad : 2;
++   bool lower_line_smooth : 1;
++   uint8_t pad : 1;
+    uint8_t coord_replace_bits;
+ };
+ 
+diff --git a/src/gallium/drivers/zink/zink_state.c b/src/gallium/drivers/zink/zink_state.c
+index 92b0b0ed483..e5b82bda278 100644
+--- a/src/gallium/drivers/zink/zink_state.c
++++ b/src/gallium/drivers/zink/zink_state.c
+@@ -594,7 +594,8 @@ zink_create_rasterizer_state(struct pipe_context *pctx,
+ 
+    state->hw_state.line_mode = VK_LINE_RASTERIZATION_MODE_DEFAULT_EXT;
+    if (rs_state->line_rectangular) {
+-      if (rs_state->line_smooth)
++      if (rs_state->line_smooth &&
++          !screen->driver_workarounds.no_linesmooth)
+          state->hw_state.line_mode = VK_LINE_RASTERIZATION_MODE_RECTANGULAR_SMOOTH_EXT;
+       else
+          state->hw_state.line_mode = VK_LINE_RASTERIZATION_MODE_RECTANGULAR_EXT;
+diff --git a/src/gallium/drivers/zink/zink_types.h b/src/gallium/drivers/zink/zink_types.h
+index 64b79e30396..4b6a0100396 100644
+--- a/src/gallium/drivers/zink/zink_types.h
++++ b/src/gallium/drivers/zink/zink_types.h
+@@ -1284,6 +1284,7 @@ struct zink_screen {
+       bool needs_sanitised_layer;
+       bool track_renderpasses;
+       bool no_linestipple;
++      bool no_linesmooth;
+       bool no_hw_gl_point;
+       unsigned z16_unscaled_bias;
+       unsigned z24_unscaled_bias;
+-- 
+2.17.1
+

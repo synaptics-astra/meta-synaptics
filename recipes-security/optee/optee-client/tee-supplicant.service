@@ -1,0 +1,11 @@
+[Unit]
+Description=TEE Supplicant on %i
+Before=systemd-modules-load.service
+
+[Service]
+User=root
+EnvironmentFile=-@sysconfdir@/default/tee-supplicant
+ExecStart=@sbindir@/tee-supplicant $OPTARGS
+
+[Install]
+WantedBy=basic.target

@@ -1,0 +1,107 @@
+From 3ba3f1b25be62ae6c0aa41fc8acd34aa98a4db4a Mon Sep 17 00:00:00 2001
+From: "Hsia-Jun(Randy) Li" <randy.li@synaptics.com>
+Date: Tue, 26 Sep 2023 15:37:18 +0800
+Subject: [PATCH 05/12] v4l2: object: use the stride from the driver
+
+---
+ .../gst-plugins-good/sys/v4l2/gstv4l2object.c | 49 +++++++------------
+ 1 file changed, 17 insertions(+), 32 deletions(-)
+
+diff --git a/subprojects/gst-plugins-good/sys/v4l2/gstv4l2object.c b/subprojects/gst-plugins-good/sys/v4l2/gstv4l2object.c
+index 9736cd5bf5..701bb5ef82 100644
+--- a/subprojects/gst-plugins-good/sys/v4l2/gstv4l2object.c
++++ b/subprojects/gst-plugins-good/sys/v4l2/gstv4l2object.c
+@@ -3360,7 +3360,7 @@ gst_v4l2_object_save_format (GstV4l2Object * v4l2object,
+ {
+   const GstVideoFormatInfo *finfo = info->finfo;
+   gboolean standard_stride = TRUE;
+-  gint stride, pstride, padded_width, padded_height, i;
++  gint stride, padded_height, i;
+ 
+   if (GST_VIDEO_INFO_FORMAT (info) == GST_VIDEO_FORMAT_ENCODED) {
+     v4l2object->n_v4l2_planes = 1;
+@@ -3374,24 +3374,6 @@ gst_v4l2_object_save_format (GstV4l2Object * v4l2object,
+   else
+     stride = format->fmt.pix.bytesperline;
+ 
+-  pstride = GST_VIDEO_FORMAT_INFO_PSTRIDE (finfo, 0);
+-  if (pstride) {
+-    padded_width = stride / pstride;
+-  } else {
+-    /* pstride can be 0 for complex formats */
+-    GST_WARNING_OBJECT (v4l2object->dbg_obj,
+-        "format %s has a pstride of 0, cannot compute padded with",
+-        gst_video_format_to_string (GST_VIDEO_INFO_FORMAT (info)));
+-    padded_width = stride;
+-  }
+-
+-  if (padded_width < format->fmt.pix.width)
+-    GST_WARNING_OBJECT (v4l2object->dbg_obj,
+-        "Driver bug detected, stride (%d) is too small for the width (%d)",
+-        padded_width, format->fmt.pix.width);
+-
+-  align->padding_right = padded_width - info->width - align->padding_left;
+-
+   /* adjust bottom padding */
+   padded_height = format->fmt.pix.height;
+ 
+@@ -3404,6 +3386,20 @@ gst_v4l2_object_save_format (GstV4l2Object * v4l2object,
+   align->padding_bottom =
+       padded_height - GST_VIDEO_INFO_FIELD_HEIGHT (info) - align->padding_top;
+ 
++  /* adjust the offset to take into account left and top */
++  if (GST_VIDEO_FORMAT_INFO_IS_TILED (finfo)) {
++    if ((align->padding_left + align->padding_top) > 0)
++      GST_WARNING_OBJECT (v4l2object->dbg_obj,
++          "Left and top padding is not permitted for tiled formats");
++    memset (v4l2object->plane_size, 0,
++        sizeof (v4l2object->plane_size[0] * GST_VIDEO_MAX_PLANES));
++  } else {
++    /* make info know the right visual region */
++    if (!gst_video_info_align_full (info, align, NULL)) {
++      GST_WARNING_OBJECT (v4l2object->dbg_obj, "Failed to align video info");
++    }
++  }
++
+   /* setup the strides and offset */
+   if (V4L2_TYPE_IS_MULTIPLANAR (v4l2object->type)) {
+     struct v4l2_pix_format_mplane *pix_mp = &format->fmt.pix_mp;
+@@ -3420,6 +3416,7 @@ gst_v4l2_object_save_format (GstV4l2Object * v4l2object,
+       gst_v4l2_object_set_stride (info, align, i, stride);
+       info->offset[i] = info->size;
+       info->size += pix_mp->plane_fmt[i].sizeimage;
++      v4l2object->plane_size[i] = pix_mp->plane_fmt[i].sizeimage;
+     }
+ 
+     /* Extrapolate stride if planar format are being set in 1 v4l2 plane */
+@@ -3431,6 +3428,7 @@ gst_v4l2_object_save_format (GstV4l2Object * v4l2object,
+     /* only one plane in non-MPLANE mode */
+     v4l2object->n_v4l2_planes = 1;
+     info->size = format->fmt.pix.sizeimage;
++    v4l2object->plane_size[0] = format->fmt.pix.sizeimage;
+     stride = format->fmt.pix.bytesperline;
+ 
+     if (info->stride[0] != stride)
+@@ -3439,19 +3437,6 @@ gst_v4l2_object_save_format (GstV4l2Object * v4l2object,
+     gst_v4l2_object_extrapolate_info (v4l2object, info, align, stride);
+   }
+ 
+-  /* adjust the offset to take into account left and top */
+-  if (GST_VIDEO_FORMAT_INFO_IS_TILED (finfo)) {
+-    if ((align->padding_left + align->padding_top) > 0)
+-      GST_WARNING_OBJECT (v4l2object->dbg_obj,
+-          "Left and top padding is not permitted for tiled formats");
+-    memset (v4l2object->plane_size, 0,
+-        sizeof (v4l2object->plane_size[0] * GST_VIDEO_MAX_PLANES));
+-  } else {
+-    if (!gst_video_info_align_full (info, align, v4l2object->plane_size)) {
+-      GST_WARNING_OBJECT (v4l2object->dbg_obj, "Failed to align video info");
+-    }
+-  }
+-
+ store_info:
+   GST_DEBUG_OBJECT (v4l2object->dbg_obj, "Got sizeimage %" G_GSIZE_FORMAT,
+       info->size);
+-- 
+2.17.1
+

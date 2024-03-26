@@ -1,0 +1,64 @@
+From 1bc869491d51631c3fe0c6b2f2373e7b0c4fca84 Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Thu, 26 Jan 2023 16:23:27 +0000
+Subject: [PATCH 060/168] vulkan/wsi/wayland: allocate memory for swapchain
+ modifier array
+
+A pointer to the array of DRM format modifiers is stored in the
+swapchain. If the pointer is derived from dmabuf feedback, it may
+become invalid when new feedback is received, making the comparison
+done by surface_dmabuf_feedback_tranche_done unreliable.
+---
+ src/vulkan/wsi/wsi_common_wayland.c | 21 ++++++++++++++++++++-
+ 1 file changed, 20 insertions(+), 1 deletion(-)
+
+diff --git a/src/vulkan/wsi/wsi_common_wayland.c b/src/vulkan/wsi/wsi_common_wayland.c
+index e292ec4c70f..bf242e19c16 100644
+--- a/src/vulkan/wsi/wsi_common_wayland.c
++++ b/src/vulkan/wsi/wsi_common_wayland.c
+@@ -1884,6 +1884,8 @@ wsi_wl_swapchain_chain_free(struct wsi_wl_swapchain *chain,
+ 
+    wsi_swapchain_finish(&chain->base);
+ 
++   vk_free(pAllocator, (void *)chain->drm_modifiers);
++
+    vk_free(pAllocator, chain);
+ }
+ 
+@@ -2022,8 +2024,24 @@ wsi_wl_surface_create_swapchain(VkIcdSurfaceBase *icd_surface,
+    } else {
+       chain->shm_format = wl_shm_format_for_vk_format(chain->vk_format, alpha);
+    }
++
+    chain->num_drm_modifiers = num_drm_modifiers;
+-   chain->drm_modifiers = drm_modifiers;
++   if (num_drm_modifiers > 0) {
++      uint64_t *modifiers;
++
++      modifiers = vk_alloc(pAllocator, sizeof(*modifiers) * num_drm_modifiers,
++                           8, VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
++      if (!modifiers) {
++         result = VK_ERROR_OUT_OF_HOST_MEMORY;
++         goto fail_modifiers_alloc;
++      }
++
++      for (uint32_t i = 0; i < num_drm_modifiers; i++)
++         modifiers[i] = drm_modifiers[i];
++
++      chain->drm_modifiers = modifiers;
++   }
++
+    chain->fifo_ready = true;
+ 
+    for (uint32_t i = 0; i < chain->base.image_count; i++) {
+@@ -2041,6 +2059,7 @@ wsi_wl_surface_create_swapchain(VkIcdSurfaceBase *icd_surface,
+ fail_image_init:
+    wsi_wl_swapchain_images_free(chain);
+ 
++fail_modifiers_alloc:
+    wsi_wl_swapchain_chain_free(chain, pAllocator);
+ 
+    return result;
+-- 
+2.17.1
+

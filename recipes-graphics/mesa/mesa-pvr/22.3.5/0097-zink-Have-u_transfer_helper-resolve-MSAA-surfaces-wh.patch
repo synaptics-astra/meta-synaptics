@@ -1,0 +1,62 @@
+From ad449dd3028f9bb54c165112e221647bb052932d Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Wed, 4 Jan 2023 09:08:12 -0800
+Subject: [PATCH 097/168] zink: Have u_transfer_helper resolve MSAA surfaces
+ when mapping.
+
+This fixes all the dEQP winsys multisampling failures (like
+dEQP-GLES3.functional.multisample.default_framebuffer.depth) I've found so
+far.
+
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/20523>
+---
+ .../drivers/zink/ci/zink-anv-tgl-fails.txt    | 20 -------------------
+ src/gallium/drivers/zink/zink_resource.c      |  1 +
+ 2 files changed, 1 insertion(+), 20 deletions(-)
+
+diff --git a/src/gallium/drivers/zink/ci/zink-anv-tgl-fails.txt b/src/gallium/drivers/zink/ci/zink-anv-tgl-fails.txt
+index 2414a7ba682..4543d940413 100644
+--- a/src/gallium/drivers/zink/ci/zink-anv-tgl-fails.txt
++++ b/src/gallium/drivers/zink/ci/zink-anv-tgl-fails.txt
+@@ -96,26 +96,6 @@ dEQP-EGL.functional.buffer_age.no_preserve.resize_before_swap.odd_render_render_
+ 
+ dEQP-EGL.functional.query_context.get_current_context.rgba8888_window,Crash
+ 
+-# https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/20508
+-multisample-dEQP-GLES3.functional.multisample.default_framebuffer.depth,Fail
+-multisample-dEQP-GLES3.functional.multisample.default_framebuffer.num_samples_line,Fail
+-multisample-dEQP-GLES3.functional.multisample.default_framebuffer.num_samples_polygon,Fail
+-multisample-dEQP-GLES3.functional.occlusion_query.depth_clear_stencil_write,Fail
+-multisample-dEQP-GLES3.functional.occlusion_query.depth_write_depth_clear_stencil_write_stencil_clear,Fail
+-multisample-dEQP-GLES3.functional.occlusion_query.depth_write_depth_clear,Fail
+-multisample-dEQP-GLES3.functional.occlusion_query.depth_write_stencil_clear,Fail
+-multisample-dEQP-GLES3.functional.occlusion_query.depth_write_stencil_write,Fail
+-multisample-dEQP-GLES3.functional.occlusion_query.scissor_depth_clear_stencil_write,Fail
+-multisample-dEQP-GLES3.functional.occlusion_query.scissor_depth_write_stencil_clear,Fail
+-multisample-dEQP-GLES3.functional.occlusion_query.stencil_write,Fail
+-multisample-dEQP-GLES31.functional.sample_shading.min_sample_shading.default_framebuffer_color,Fail
+-multisample-dEQP-GLES31.functional.sample_shading.min_sample_shading.default_framebuffer_discard,Fail
+-multisample-dEQP-GLES31.functional.shaders.multisample_interpolation.sample_qualifier.default_framebuffer,Fail
+-multisample-dEQP-GLES31.functional.shaders.sample_variables.sample_id.default_framebuffer,Fail
+-multisample-dEQP-GLES31.functional.shaders.sample_variables.sample_mask.discard_half_per_pixel.default_framebuffer,Fail
+-multisample-dEQP-GLES31.functional.shaders.sample_variables.sample_mask.discard_half_per_sample.default_framebuffer,Fail
+-multisample-dEQP-GLES31.functional.shaders.sample_variables.sample_mask.discard_half_per_two_samples.default_framebuffer,Fail
+-
+ # Around the time of running these tests there are some warnings from the kernel in dma_resv.c, and at least
+ # some failures look like not waiting for rendering to complete.
+ wayland-dEQP-EGL.functional.color_clears.multi_context.gles1_gles2_gles3.rgb565_pbuffer,Fail
+diff --git a/src/gallium/drivers/zink/zink_resource.c b/src/gallium/drivers/zink/zink_resource.c
+index df5123c037c..0b43f89d44e 100644
+--- a/src/gallium/drivers/zink/zink_resource.c
++++ b/src/gallium/drivers/zink/zink_resource.c
+@@ -2348,6 +2348,7 @@ zink_screen_resource_init(struct pipe_screen *pscreen)
+    pscreen->transfer_helper = u_transfer_helper_create(&transfer_vtbl,
+       U_TRANSFER_HELPER_SEPARATE_Z32S8 | U_TRANSFER_HELPER_SEPARATE_STENCIL |
+       U_TRANSFER_HELPER_INTERLEAVE_IN_PLACE |
++      U_TRANSFER_HELPER_MSAA_MAP |
+       (!screen->have_D24_UNORM_S8_UINT ? U_TRANSFER_HELPER_Z24_IN_Z32F : 0));
+ 
+    if (screen->info.have_KHR_external_memory_fd || screen->info.have_KHR_external_memory_win32) {
+-- 
+2.17.1
+

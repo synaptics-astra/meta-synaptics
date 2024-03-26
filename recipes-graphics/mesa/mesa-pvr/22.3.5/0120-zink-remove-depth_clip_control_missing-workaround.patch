@@ -1,0 +1,86 @@
+From a469545071724289cb851742a2a5cab743b3226f Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Tue, 17 Jan 2023 09:53:41 +0100
+Subject: [PATCH 120/168] zink: remove depth_clip_control_missing workaround
+
+The ANV bug this was meant to represent has been long fixed, and the
+workaround has just been a proxy for EXT_depth_clip_control for a while
+now.
+
+Let's simplify things a bit, by removing this flag.
+
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/20740>
+---
+ src/gallium/drivers/zink/zink_compiler.c | 2 +-
+ src/gallium/drivers/zink/zink_pipeline.c | 2 +-
+ src/gallium/drivers/zink/zink_screen.c   | 1 -
+ src/gallium/drivers/zink/zink_state.c    | 2 +-
+ src/gallium/drivers/zink/zink_types.h    | 1 -
+ 5 files changed, 3 insertions(+), 5 deletions(-)
+
+diff --git a/src/gallium/drivers/zink/zink_compiler.c b/src/gallium/drivers/zink/zink_compiler.c
+index 11fdb6389dc..93a88ea46e4 100644
+--- a/src/gallium/drivers/zink/zink_compiler.c
++++ b/src/gallium/drivers/zink/zink_compiler.c
+@@ -2887,7 +2887,7 @@ zink_shader_compile(struct zink_screen *screen, struct zink_shader *zs, nir_shad
+             if (zs->sinfo.have_xfb)
+                sinfo->last_vertex = true;
+ 
+-            if (!zink_vs_key_base(key)->clip_halfz && screen->driver_workarounds.depth_clip_control_missing) {
++            if (!zink_vs_key_base(key)->clip_halfz && !screen->info.have_EXT_depth_clip_control) {
+                NIR_PASS_V(nir, nir_lower_clip_halfz);
+             }
+             if (zink_vs_key_base(key)->push_drawid) {
+diff --git a/src/gallium/drivers/zink/zink_pipeline.c b/src/gallium/drivers/zink/zink_pipeline.c
+index 731288a83f9..e7e0e567175 100644
+--- a/src/gallium/drivers/zink/zink_pipeline.c
++++ b/src/gallium/drivers/zink/zink_pipeline.c
+@@ -148,7 +148,7 @@ zink_create_gfx_pipeline(struct zink_screen *screen,
+    viewport_state.pViewports = NULL;
+    viewport_state.scissorCount = screen->info.have_EXT_extended_dynamic_state ? 0 : state->dyn_state1.num_viewports;
+    viewport_state.pScissors = NULL;
+-   if (!screen->driver_workarounds.depth_clip_control_missing && !hw_rast_state->clip_halfz)
++   if (screen->info.have_EXT_depth_clip_control && !hw_rast_state->clip_halfz)
+       viewport_state.pNext = &clip;
+ 
+    VkPipelineRasterizationStateCreateInfo rast_state = {0};
+diff --git a/src/gallium/drivers/zink/zink_screen.c b/src/gallium/drivers/zink/zink_screen.c
+index c0ba0861fe1..29e20a2ba89 100644
+--- a/src/gallium/drivers/zink/zink_screen.c
++++ b/src/gallium/drivers/zink/zink_screen.c
+@@ -2335,7 +2335,6 @@ init_driver_workarounds(struct zink_screen *screen)
+                                                          screen->info.gpl_props.graphicsPipelineLibraryFastLinking ||
+                                                          screen->is_cpu);
+    screen->driver_workarounds.broken_l4a4 = screen->info.driver_props.driverID == VK_DRIVER_ID_NVIDIA_PROPRIETARY;
+-   screen->driver_workarounds.depth_clip_control_missing = !screen->info.have_EXT_depth_clip_control;
+    if (screen->info.driver_props.driverID == VK_DRIVER_ID_AMD_PROPRIETARY)
+       /* this completely breaks xfb somehow */
+       screen->info.have_EXT_extended_dynamic_state2 = false;
+diff --git a/src/gallium/drivers/zink/zink_state.c b/src/gallium/drivers/zink/zink_state.c
+index b4512ea7cef..17df1cd06b5 100644
+--- a/src/gallium/drivers/zink/zink_state.c
++++ b/src/gallium/drivers/zink/zink_state.c
+@@ -650,7 +650,7 @@ zink_bind_rasterizer_state(struct pipe_context *pctx, void *cso)
+       ctx->rast_state_changed = true;
+ 
+       if (clip_halfz != ctx->rast_state->base.clip_halfz) {
+-         if (!screen->driver_workarounds.depth_clip_control_missing)
++         if (screen->info.have_EXT_depth_clip_control)
+             ctx->gfx_pipeline_state.dirty = true;
+          else
+             zink_set_last_vertex_key(ctx)->clip_halfz = ctx->rast_state->base.clip_halfz;
+diff --git a/src/gallium/drivers/zink/zink_types.h b/src/gallium/drivers/zink/zink_types.h
+index 4b6a0100396..0164bf2e348 100644
+--- a/src/gallium/drivers/zink/zink_types.h
++++ b/src/gallium/drivers/zink/zink_types.h
+@@ -1277,7 +1277,6 @@ struct zink_screen {
+ 
+    struct {
+       bool broken_l4a4;
+-      bool depth_clip_control_missing;
+       bool implicit_sync;
+       bool always_feedback_loop;
+       bool always_feedback_loop_zs;
+-- 
+2.17.1
+

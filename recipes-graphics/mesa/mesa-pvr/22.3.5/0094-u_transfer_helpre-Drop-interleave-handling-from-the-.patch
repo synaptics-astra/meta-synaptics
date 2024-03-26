@@ -1,0 +1,45 @@
+From 56537f60d376905173893cf06937bf91bf6a7282 Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Wed, 4 Jan 2023 11:29:23 -0800
+Subject: [PATCH 094/168] u_transfer_helpre: Drop !interleave handling from the
+ interleave code.
+
+It's only called when need_interleave_path(), and they're static functions
+in this file since !17959.
+
+Reviewed-by: Mike Blumenkrantz <michael.blumenkrantz@gmail.com>
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/20523>
+---
+ src/gallium/auxiliary/util/u_transfer_helper.c | 9 ---------
+ 1 file changed, 9 deletions(-)
+
+diff --git a/src/gallium/auxiliary/util/u_transfer_helper.c b/src/gallium/auxiliary/util/u_transfer_helper.c
+index 73e4f1b7742..dad0a4c44b5 100644
+--- a/src/gallium/auxiliary/util/u_transfer_helper.c
++++ b/src/gallium/auxiliary/util/u_transfer_helper.c
+@@ -585,9 +585,6 @@ u_transfer_helper_deinterleave_transfer_map(struct pipe_context *pctx,
+    unsigned width = box->width;
+    unsigned height = box->height;
+ 
+-   if (!need_interleave_path(helper, format))
+-      return helper->vtbl->transfer_map(pctx, prsc, level, usage, box, pptrans);
+-
+    assert(box->depth == 1);
+ 
+    trans = calloc(1, sizeof(*trans));
+@@ -680,12 +677,6 @@ u_transfer_helper_deinterleave_transfer_unmap(struct pipe_context *pctx,
+                                               struct pipe_transfer *ptrans)
+ {
+    struct u_transfer_helper *helper = pctx->screen->transfer_helper;
+-   enum pipe_format format = ptrans->resource->format;
+-
+-   if (!need_interleave_path(helper, format)) {
+-      helper->vtbl->transfer_unmap(pctx, ptrans);
+-      return;
+-   }
+ 
+    struct u_transfer *trans = (struct u_transfer *)ptrans;
+ 
+-- 
+2.17.1
+

@@ -1,0 +1,5 @@
+Name: synap-framework
+Description: SyNAP Framework libraries
+Version: @@PV@@
+Requires: tensorflow-lite
+Libs: -l:libsynap_postprocess.a -l:libsynap_preprocess.a -l:libsynap_app.a -l:libsynap_base.a -l:libsynap_img.a -lsynapnb -lm

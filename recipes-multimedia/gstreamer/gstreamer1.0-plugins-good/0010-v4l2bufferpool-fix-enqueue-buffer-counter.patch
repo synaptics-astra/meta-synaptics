@@ -1,0 +1,62 @@
+From 1df3faac06e8d03677599133a36c440c74446048 Mon Sep 17 00:00:00 2001
+From: "Hsia-Jun(Randy) Li" <randy.li@synaptics.com>
+Date: Tue, 20 Feb 2024 15:48:56 +0800
+Subject: [PATCH 10/12] v4l2bufferpool: fix enqueue buffer counter
+
+If the kernel driver returns a valid buffer, it is obviously
+not in the kernel queue anymore.
+JIRA:
+VSSDK-28420
+
+Signed-off-by: Hsia-Jun(Randy) Li <randy.li@synaptics.com>
+---
+ .../sys/v4l2/gstv4l2bufferpool.c              | 24 ++++++++++++-------
+ 1 file changed, 16 insertions(+), 8 deletions(-)
+
+diff --git a/subprojects/gst-plugins-good/sys/v4l2/gstv4l2bufferpool.c b/subprojects/gst-plugins-good/sys/v4l2/gstv4l2bufferpool.c
+index 58c209929b..5017bc7f41 100644
+--- a/subprojects/gst-plugins-good/sys/v4l2/gstv4l2bufferpool.c
++++ b/subprojects/gst-plugins-good/sys/v4l2/gstv4l2bufferpool.c
+@@ -1278,23 +1278,31 @@ gst_v4l2_buffer_pool_dqbuf (GstV4l2BufferPool * pool, GstBuffer ** buffer,
+         group->buffer.index);
+   }
+ 
+-  if (group->buffer.flags & V4L2_BUF_FLAG_LAST &&
+-      group->planes[0].bytesused == 0) {
+-    GST_DEBUG_OBJECT (pool, "Empty last buffer, signalling eos.");
+-    goto eos;
+-  }
+-
+   outbuf = pool->buffers[group->buffer.index];
+-  if (outbuf == NULL)
++  if (outbuf == NULL) {
++    if (group->buffer.flags & V4L2_BUF_FLAG_LAST ||
++        group->planes[0].bytesused == 0) {
++      GST_DEBUG_OBJECT (pool, "Last buffer is invalid, signalling eos.");
++      goto eos;
++    }
++
+     goto no_buffer;
++  }
+ 
+-  pool->buffers[group->buffer.index] = NULL;
+   if (g_atomic_int_dec_and_test (&pool->num_queued)) {
+     GST_OBJECT_LOCK (pool);
+     pool->empty = TRUE;
+     GST_OBJECT_UNLOCK (pool);
+   }
+ 
++  if (group->buffer.flags & V4L2_BUF_FLAG_LAST &&
++      group->planes[0].bytesused == 0) {
++    GST_DEBUG_OBJECT (pool, "Empty last buffer, signalling eos.");
++    goto eos;
++  }
++
++  pool->buffers[group->buffer.index] = NULL;
++
+   timestamp = GST_TIMEVAL_TO_TIME (group->buffer.timestamp);
+ 
+   for (i = 0; i < group->n_mem; i++) {
+-- 
+2.17.1
+

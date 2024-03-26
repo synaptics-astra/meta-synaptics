@@ -1,0 +1,57 @@
+From 8808e80bd95faa2b67e0b681c48bce2f687698f1 Mon Sep 17 00:00:00 2001
+From: Imagination Technologies <powervr@imgtec.com>
+Date: Tue, 29 Nov 2022 11:40:50 -0300
+Subject: [PATCH 081/168] zink: rename `zink_set_line_stipple_keys`
+
+This function will be used by another primitive emulation and
+a more generic name will be needed.
+
+Part-of: <https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/20109>
+---
+ src/gallium/drivers/zink/zink_draw.cpp  | 2 +-
+ src/gallium/drivers/zink/zink_program.c | 2 +-
+ src/gallium/drivers/zink/zink_program.h | 2 +-
+ 3 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/src/gallium/drivers/zink/zink_draw.cpp b/src/gallium/drivers/zink/zink_draw.cpp
+index f1c70aa906b..303ad32bd51 100644
+--- a/src/gallium/drivers/zink/zink_draw.cpp
++++ b/src/gallium/drivers/zink/zink_draw.cpp
+@@ -550,7 +550,7 @@ zink_draw(struct pipe_context *pctx,
+ 
+    if (lines_changed || rast_state_changed ||
+        ctx->gfx_pipeline_state.modules_changed)
+-      zink_set_line_stipple_keys(ctx);
++      zink_set_primitive_emulation_keys(ctx);
+ 
+    if (index_size) {
+       const VkIndexType index_type[3] = {
+diff --git a/src/gallium/drivers/zink/zink_program.c b/src/gallium/drivers/zink/zink_program.c
+index 5524bf659c8..3085177e9f1 100644
+--- a/src/gallium/drivers/zink/zink_program.c
++++ b/src/gallium/drivers/zink/zink_program.c
+@@ -1864,7 +1864,7 @@ zink_driver_thread_add_job(struct pipe_screen *pscreen, void *data,
+ }
+ 
+ void
+-zink_set_line_stipple_keys(struct zink_context *ctx)
++zink_set_primitive_emulation_keys(struct zink_context *ctx)
+ {
+    struct zink_screen *screen = zink_screen(ctx->base.screen);
+    bool lower_line_stipple = ctx->gfx_pipeline_state.rast_prim == PIPE_PRIM_LINES &&
+diff --git a/src/gallium/drivers/zink/zink_program.h b/src/gallium/drivers/zink/zink_program.h
+index 75a855936ac..322f10155b6 100644
+--- a/src/gallium/drivers/zink/zink_program.h
++++ b/src/gallium/drivers/zink/zink_program.h
+@@ -341,7 +341,7 @@ zink_set_fs_point_coord_key(struct zink_context *ctx)
+ }
+ 
+ void
+-zink_set_line_stipple_keys(struct zink_context *ctx);
++zink_set_primitive_emulation_keys(struct zink_context *ctx);
+ 
+ static inline const struct zink_shader_key_base *
+ zink_get_shader_key_base(struct zink_context *ctx, gl_shader_stage pstage)
+-- 
+2.17.1
+

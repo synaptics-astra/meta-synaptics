@@ -1,0 +1,208 @@
+From 3941d574b105e7febe347d0fd06fe43f618ebb4b Mon Sep 17 00:00:00 2001
+From: "Hsia-Jun(Randy) Li" <randy.li@synaptics.com>
+Date: Thu, 1 Dec 2022 14:49:03 +0800
+Subject: [PATCH 09/12] v4l2: Enable AV1 stateful decoder
+
+---
+ .../sys/v4l2/gstv4l2av1codec.c                | 78 +++++++++++++++++++
+ .../sys/v4l2/gstv4l2av1codec.h                | 33 ++++++++
+ .../gst-plugins-good/sys/v4l2/gstv4l2object.c |  8 ++
+ .../sys/v4l2/gstv4l2videodec.c                |  4 +
+ .../gst-plugins-good/sys/v4l2/meson.build     |  1 +
+ 5 files changed, 124 insertions(+)
+ create mode 100644 subprojects/gst-plugins-good/sys/v4l2/gstv4l2av1codec.c
+ create mode 100644 subprojects/gst-plugins-good/sys/v4l2/gstv4l2av1codec.h
+
+diff --git a/subprojects/gst-plugins-good/sys/v4l2/gstv4l2av1codec.c b/subprojects/gst-plugins-good/sys/v4l2/gstv4l2av1codec.c
+new file mode 100644
+index 0000000000..51220dcfc2
+--- /dev/null
++++ b/subprojects/gst-plugins-good/sys/v4l2/gstv4l2av1codec.c
+@@ -0,0 +1,78 @@
++/*
++ * Copyright (C) 2022 - 2023 Synaptics Incorporated
++ * Author: Hsia-Jun(Randy) Li <randy.li@synaptics.com>
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Library General Public
++ * License as published by the Free Software Foundation; either
++ * version 2 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Library General Public License for more details.
++ *
++ * You should have received a copy of the GNU Library General Public
++ * License along with this library; if not, write to the
++ * Free Software Foundation, Inc., 51 Franklin St, Fifth Floor,
++ * Boston, MA 02110-1301, USA.
++ *
++ */
++
++#ifdef HAVE_CONFIG_H
++#include "config.h"
++#endif
++
++#include "gstv4l2av1codec.h"
++
++#include <gst/gst.h>
++#include "ext/v4l2-controls.h"
++
++static gint
++v4l2_profile_from_string (const gchar * profile)
++{
++  gint v4l2_profile = -1;
++
++  if (g_str_equal (profile, "main"))
++    v4l2_profile = V4L2_MPEG_VIDEO_AV1_PROFILE_MAIN;
++  else if (g_str_equal (profile, "high"))
++    v4l2_profile = V4L2_MPEG_VIDEO_AV1_PROFILE_HIGH;
++  else if (g_str_equal (profile, "professional"))
++    v4l2_profile = V4L2_MPEG_VIDEO_AV1_PROFILE_PROFESSIONAL;
++  else
++    GST_WARNING ("Unsupported profile string '%s'", profile);
++
++  return v4l2_profile;
++}
++
++static const gchar *
++v4l2_profile_to_string (gint v4l2_profile)
++{
++  switch (v4l2_profile) {
++    case V4L2_MPEG_VIDEO_AV1_PROFILE_MAIN:
++      return "main";
++    case V4L2_MPEG_VIDEO_AV1_PROFILE_HIGH:
++      return "high";
++    case V4L2_MPEG_VIDEO_AV1_PROFILE_PROFESSIONAL:
++      return "professional";
++    default:
++      GST_WARNING ("Unsupported V4L2 profile %i", v4l2_profile);
++      break;
++  }
++
++  return NULL;
++}
++
++const GstV4l2Codec *
++gst_v4l2_av1_get_codec (void)
++{
++  static GstV4l2Codec *codec = NULL;
++  if (g_once_init_enter (&codec)) {
++    static GstV4l2Codec c;
++    c.profile_cid = V4L2_CID_MPEG_VIDEO_AV1_PROFILE;
++    c.profile_to_string = v4l2_profile_to_string;
++    c.profile_from_string = v4l2_profile_from_string;
++    g_once_init_leave (&codec, &c);
++  }
++  return codec;
++}
+diff --git a/subprojects/gst-plugins-good/sys/v4l2/gstv4l2av1codec.h b/subprojects/gst-plugins-good/sys/v4l2/gstv4l2av1codec.h
+new file mode 100644
+index 0000000000..be23eec56d
+--- /dev/null
++++ b/subprojects/gst-plugins-good/sys/v4l2/gstv4l2av1codec.h
+@@ -0,0 +1,33 @@
++/*
++ * Copyright (C) 2022 Synaptics Incorporated
++ * Author: Hsia-Jun(Randy) Li <randy.li@synaptics.com>
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Library General Public
++ * License as published by the Free Software Foundation; either
++ * version 2 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Library General Public License for more details.
++ *
++ * You should have received a copy of the GNU Library General Public
++ * License along with this library; if not, write to the
++ * Free Software Foundation, Inc., 51 Franklin St, Fifth Floor,
++ * Boston, MA 02110-1301, USA.
++ *
++ */
++
++#ifndef __GST_V4L2_AV1_CODEC_H__
++#define __GST_V4L2_AV1_CODEC_H__
++
++#include "gstv4l2codec.h"
++
++G_BEGIN_DECLS
++
++const GstV4l2Codec * gst_v4l2_av1_get_codec (void);
++
++G_END_DECLS
++
++#endif
+diff --git a/subprojects/gst-plugins-good/sys/v4l2/gstv4l2object.c b/subprojects/gst-plugins-good/sys/v4l2/gstv4l2object.c
+index 41f1763bff..056d540ed9 100644
+--- a/subprojects/gst-plugins-good/sys/v4l2/gstv4l2object.c
++++ b/subprojects/gst-plugins-good/sys/v4l2/gstv4l2object.c
+@@ -194,6 +194,7 @@ static const GstV4L2FormatDesc gst_v4l2_formats[] = {
+   {V4L2_PIX_FMT_VC1_ANNEX_L, FALSE, GST_V4L2_CODEC},
+   {V4L2_PIX_FMT_VP8, FALSE, GST_V4L2_CODEC | GST_V4L2_NO_PARSE},
+   {V4L2_PIX_FMT_VP9, FALSE, GST_V4L2_CODEC | GST_V4L2_NO_PARSE},
++  {V4L2_PIX_FMT_AV1, FALSE, GST_V4L2_CODEC},
+ 
+   /*  Vendor-specific formats   */
+   {V4L2_PIX_FMT_WNVA, TRUE, GST_V4L2_CODEC},
+@@ -1542,6 +1543,11 @@ gst_v4l2_object_v4l2fourcc_to_bare_struct (guint32 fourcc)
+     case V4L2_PIX_FMT_VP9:
+       structure = gst_structure_new_empty ("video/x-vp9");
+       break;
++    case V4L2_PIX_FMT_AV1:
++      structure = gst_structure_new ("video/x-av1",
++          "stream-format", G_TYPE_STRING, "obu-stream", "alignment",
++          G_TYPE_STRING, "frame", NULL);
++      break;
+     case V4L2_PIX_FMT_GREY:    /*  8  Greyscale     */
+     case V4L2_PIX_FMT_Y16:
+     case V4L2_PIX_FMT_Y16_BE:
+@@ -1998,6 +2004,8 @@ gst_v4l2_object_get_caps_info (GstV4l2Object * v4l2object, GstCaps * caps,
+       fourcc = V4L2_PIX_FMT_VP8;
+     } else if (g_str_equal (mimetype, "video/x-vp9")) {
+       fourcc = V4L2_PIX_FMT_VP9;
++    } else if (g_str_equal (mimetype, "video/x-av1")) {
++      fourcc = V4L2_PIX_FMT_AV1;
+     } else if (g_str_equal (mimetype, "video/x-bayer")) {
+       const gchar *format = gst_structure_get_string (structure, "format");
+       if (format) {
+diff --git a/subprojects/gst-plugins-good/sys/v4l2/gstv4l2videodec.c b/subprojects/gst-plugins-good/sys/v4l2/gstv4l2videodec.c
+index b99e67e50e..3fb01bd4fd 100644
+--- a/subprojects/gst-plugins-good/sys/v4l2/gstv4l2videodec.c
++++ b/subprojects/gst-plugins-good/sys/v4l2/gstv4l2videodec.c
+@@ -38,6 +38,7 @@
+ #include "gstv4l2mpeg4codec.h"
+ #include "gstv4l2vp8codec.h"
+ #include "gstv4l2vp9codec.h"
++#include "gstv4l2av1codec.h"
+ 
+ #include <string.h>
+ #include <glib/gi18n-lib.h>
+@@ -1423,6 +1424,9 @@ G_STMT_START { \
+   } else if (gst_structure_has_name (s, "video/x-vp9")) {
+     SET_META ("VP9");
+     cdata->codec = gst_v4l2_vp9_get_codec ();
++  } else if (gst_structure_has_name (s, "video/x-av1")) {
++    SET_META ("AV1");
++    cdata->codec = gst_v4l2_av1_get_codec ();
+   } else if (gst_structure_has_name (s, "video/x-bayer")) {
+     SET_META ("BAYER");
+   } else if (gst_structure_has_name (s, "video/x-sonix")) {
+diff --git a/subprojects/gst-plugins-good/sys/v4l2/meson.build b/subprojects/gst-plugins-good/sys/v4l2/meson.build
+index 6ece251b5e..d95120adbb 100644
+--- a/subprojects/gst-plugins-good/sys/v4l2/meson.build
++++ b/subprojects/gst-plugins-good/sys/v4l2/meson.build
+@@ -29,6 +29,7 @@ v4l2_sources = [
+   'gstv4l2vp8enc.c',
+   'gstv4l2vp9codec.c',
+   'gstv4l2vp9enc.c',
++  'gstv4l2av1codec.c',
+   'v4l2_calls.c',
+   'v4l2-utils.c',
+   'tuner.c',
+-- 
+2.17.1
+
