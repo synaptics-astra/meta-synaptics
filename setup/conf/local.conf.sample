@@ -237,11 +237,6 @@ BB_DISKMON_DIRS ??= "\
 # this doesn't mean anything to you.
 CONF_VERSION = "2"
 
-# enable multilib to support ampservice on the platform
-require conf/multilib.conf
-MULTILIBS = "multilib:lib32"
-DEFAULTTUNE:virtclass-multilib-lib32 = "armv7athf-neon-vfpv4"
-
 # change the following to fetch from a non-standard release server
 # SYNA_RELEASE_GIT_HOST = "git@github.com/synaptics-astra"
 # SYNA_RELEASE_BRANCH = "v${ASTRA_VERSION}"
