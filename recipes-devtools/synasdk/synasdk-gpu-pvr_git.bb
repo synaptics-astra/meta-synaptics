@@ -23,11 +23,10 @@ SYNAMACH:platypus = "sl1640"
 SYNAMACH:dolphin = "sl1680"
 SYNAMACH:myna2 = "sl1620"
 
-FIRMWARE = "sysroot/linux-baseline/data/gfx_prebuilt/imagination/${SYNAMACH}"
+PREBUILT_PATH = "sysroot/linux-baseline/data/gfx_prebuilt/imagination/${SYNAMACH}"
 
 SRC_URI = " \
    ${SYNA_SRC_LINUX_SYSROOT} \
-   file://${SYNA_SDK_PATH}/sysroot/linux-baseline/data/gfx_prebuilt/imagination/${MACHINE_ARCH} \
 "
 
 SRCREV = "${SYNA_SRCREV_LINUX_SYSROOT}"
@@ -38,32 +37,32 @@ S = "${WORKDIR}/${SYNA_SOURCE_PREFIX}"
 
 do_install () {
     # install header files
-    for i in ${SYNA_SDK_PATH}/sysroot/linux-baseline/data/gfx_prebuilt/imagination/${MACHINE_ARCH}/include/*\.h; do
+    for i in ${S}/${PREBUILT_PATH}/include/*\.h; do
         file_name=`basename "${i}"`
         install -Dm0644 ${i} ${D}${includedir}/powervr/${file_name}
     done
 
     # install PowerVR Firmware
     install -d ${D}${nonarch_base_libdir}/firmware
-    for i in ${S}/${FIRMWARE}/fw/*; do
+    for i in ${S}/${PREBUILT_PATH}/fw/*; do
         install -m 0644 ${i} ${D}${nonarch_base_libdir}/firmware
     done
 }
 
 do_install:append:aarch64 () {
-    for i in ${SYNA_SDK_PATH}/sysroot/linux-baseline/data/gfx_prebuilt/imagination/${MACHINE_ARCH}/${HOST_SYS}/lib/*\.so*; do
+    for i in ${S}/${PREBUILT_PATH}/${HOST_SYS}/lib/*\.so*; do
         file_name=`basename "${i}"`
         install -Dm0644 ${i} ${D}${libdir}/${file_name}
     done
 
-    for i in ${SYNA_SDK_PATH}/sysroot/linux-baseline/data/gfx_prebuilt/imagination/${MACHINE_ARCH}/${HOST_SYS}/bin/*; do
+    for i in ${S}/${PREBUILT_PATH}/${HOST_SYS}/bin/*; do
         file_name=`basename "${i}"`
         install -Dm0755 ${i} ${D}${bindir}/${file_name}
     done
 }
 
 do_install:append:arm () {
-    pushd ${S}/${FIRMWARE}
+    pushd ${S}/${PREBUILT_PATH}
 
     # install MESA backend
     for i in \
