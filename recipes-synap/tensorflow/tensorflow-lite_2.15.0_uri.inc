@@ -35,7 +35,7 @@ SRC_URI += " \
 SRC_URI[apachelicense.sha256sum] = "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
 
 SRC_URI += " \
-  git://github.com/syna-synap/XNNPACK.git;protocol=https;branch=syna-v2;name=xnnpack;destsuffix=git/_deps/xnnpack \
+  git://github.com/synaptics-synap/XNNPACK.git;protocol=https;branch=syna-v2;name=xnnpack;destsuffix=git/_deps/xnnpack \
   file://0001-set-fxdiv-fp16-pthreadpool-cpuinfo-dir.patch;patchdir=_deps/xnnpack \
 "
 

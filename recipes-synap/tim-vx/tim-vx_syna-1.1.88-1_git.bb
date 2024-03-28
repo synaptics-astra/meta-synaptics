@@ -3,7 +3,7 @@ LICENSE = "MIT"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=d72cd187d764d96d91db827cb65b48a7"
 
 SRCREV = "b0dc5d7436e7c4c09ac83fa1c3e16ef101884a3b"
-SRC_URI = "git://git@github.com/syna-synap/TIM-VX.git;protocol=https;branch=syna-v1.1.88-1"
+SRC_URI = "git://git@github.com/synaptics-synap/TIM-VX.git;protocol=https;branch=syna-v1.1.88-1"
 
 PV = "${SYNAP_VERSION}+git${SRCPV}"
 
