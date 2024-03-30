@@ -14,9 +14,29 @@ RDEPENDS:${PN} += " \
     linux-firmware-syna \
 "
 
-SRC_URI = " \
+SRC_URI:append = " \
     file://brcm_bt_start.service \
 "
+
+SRC_URI:append:dolphin = " \
+    file://dolphin_brcm_bt_start.patch \
+"
+
+SRC_URI:append:myna2 = " \
+    file://myna2_brcm_bt_start.patch \
+"
+
+do_patch(){
+    if [ "${MACHINE}" = "sl1680" ]; then
+        cd ${WORKDIR}
+        patch -p1 < dolphin_brcm_bt_start.patch
+    fi
+
+    if [ "${MACHINE}" = "sl1620" ]; then
+        cd ${WORKDIR}
+        patch -p1 < myna2_brcm_bt_start.patch
+    fi
+}
 
 do_install() {
     install -d ${D}${systemd_system_unitdir}

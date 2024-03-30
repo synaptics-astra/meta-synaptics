@@ -1,0 +1,12 @@
+diff --git a/brcm_bt_start.service b/brcm_bt_start.service
+index 1379338..6db56f4 100644
+--- a/brcm_bt_start.service
++++ b/brcm_bt_start.service
+@@ -5,7 +5,7 @@ Before=bluetooth.service
+ [Service]
+ Type=oneshot
+ ExecStartPre=/bin/sh -c 'rfkill unblock bluetooth'
+-ExecStart=/bin/sh -c '/usr/bin/brcm_patchram_plus -d --tosleep=300000 --baudrate 3000000 --use_baudrate_for_download --no2bytes --enable_hci --patchram /lib/firmware/bcm /dev/ttyS2 &'
++ExecStart=/bin/sh -c '/usr/bin/brcm_patchram_plus -d --tosleep=300000 --baudrate 3000000 --use_baudrate_for_download --no2bytes --enable_hci --patchram /lib/firmware/bcm /dev/ttyS3 &'
+ Restart=no
+ RemainAfterExit=yes
