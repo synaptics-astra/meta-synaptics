@@ -4,7 +4,7 @@ meta-synaptics
 This README file contains basic information about the meta-synaptics BSP layers.
 
 For more information about how to use this layer to create an image refer to the
-`Synaptics Astra Documentation <https://syna-astra.github.io/doc>`_.
+`Synaptics Astra Documentation <https://synaptics-astra.github.io/doc>`_.
 
 Dependencies
 ------------
