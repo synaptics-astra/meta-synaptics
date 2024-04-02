@@ -59,6 +59,7 @@ IMAGE_INSTALL:append:myna2 = " \
     synasdk-drivers-tlc5917 \
     brcm-patchram-plus \
     gstreamer1.0-libav \
+    synasdk-brcm-bt-start \
 "
 
 PLATYPUS_DOLPHIN_INSTALL = " \
