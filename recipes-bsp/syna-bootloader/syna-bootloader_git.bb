@@ -59,7 +59,7 @@ do_deploy () {
     fi
 
     # bootloader.subimg
-    prepend_image_info.sh ${B}/target/bootloader/bootloader_en.bin ${DEPLOYDIR}/bootloader.subimg
+    prepend_image_info.sh ${B}/target/bootloader/bootloader_en.bin ${DEPLOYDIR}/bootloader_nopreload.subimg
 
     # Generate Partition tables
     parse_pt_emmc 101 101 \

@@ -108,7 +108,7 @@ IMAGE_CMD:synaimg () {
     [ -f ${DEPLOY_DIR_IMAGE}/key.subimg ]
     [ -f ${DEPLOY_DIR_IMAGE}/preboot.subimg ]
     [ -f ${DEPLOY_DIR_IMAGE}/preload_ta.subimg ]
-    [ -f ${DEPLOY_DIR_IMAGE}/bootloader.subimg ]
+    [ -f ${DEPLOY_DIR_IMAGE}/bootloader_nopreload.subimg ]
     [ -f ${DEPLOY_DIR_IMAGE}/emmc_part_list ]
     [ -f ${DEPLOY_DIR_IMAGE}/emmc_image_list ]
     [ -f ${DEPLOY_DIR_IMAGE}/tee.subimg ]
@@ -132,8 +132,10 @@ IMAGE_CMD:synaimg () {
 
 # Append the preload_ta to the bootloader
     # Align bootloader.subimg to 512B
-    bootloader_subimg_size=`stat -c %s ${DEPLOY_DIR_IMAGE}/bootloader.subimg`
+    bootloader_subimg_size=`stat -c %s ${DEPLOY_DIR_IMAGE}/bootloader_nopreload.subimg`
     bootloader_append_size=`expr 512 - ${bootloader_subimg_size} % 512`
+
+    cp ${DEPLOY_DIR_IMAGE}/bootloader_nopreload.subimg ${DEPLOY_DIR_IMAGE}/bootloader.subimg
 
     if [ ${bootloader_append_size} -lt 512 ]; then
         dd if=/dev/zero of=${DEPLOY_DIR_IMAGE}/bootloader.subimg bs=1 seek=${bootloader_subimg_size} count=${bootloader_append_size} conv=notrunc
