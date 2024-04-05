@@ -15,6 +15,11 @@ IMAGE_INSTALL:append:dolphin = " \
     pulseaudio \
 "
 
+IMAGE_INSTALL:append:myna2 = " \
+    bluealsa \
+    pulseaudio \
+"
+
 #Fix me
 #ROOTFS_POSTPROCESS_COMMAND in android-tools bb file does not work
 #Add it here to workaround it
