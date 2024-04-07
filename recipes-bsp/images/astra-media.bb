@@ -10,6 +10,7 @@ IMAGE_INSTALL:append = " \
     weston-examples \
     tee-supplicant \
     i2c-tools \
+    v4l-utils \
     synasdk-tee \
     synasdk-drivers-axi-meter \
     synasdk-drivers-fxl6408 \
