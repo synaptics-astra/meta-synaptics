@@ -77,4 +77,5 @@ tflite_header_dirs = "\
     tensorflow/lite/schema \
     tensorflow/lite/schema/builtin_ops_header \
     tensorflow/lite/schema/builtin_ops_list \
+    tensorflow/lite/tools \
 "

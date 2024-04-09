@@ -4,7 +4,7 @@ LIC_FILES_CHKSUM = "file://LICENSE;md5=4158a261ca7f2525513e31ba9c50ae98"
 
 SRCREV_FORMAT = "tf"
 
-SRCREV_tf = "53d32166e6fd0f48d00feb3e1a7522625c0bf8d4"
+SRCREV_tf = "b2d4cb0ef19844ddfb888a639f05be55cf98466b"
 SRC_URI = "git://github.com/synaptics-synap/tensorflow.git;protocol=https;branch=syna-v2.15.0-1;name=tf "
 
 SRC_URI:append:armv7a = "file://0001-fix-unimplemented-functions.patch"
@@ -74,6 +74,14 @@ do_install:append () {
     install -d ${D}${includedir}/flatbuffers
     install -m 644 ${S}/_deps/flatbuffers/include/flatbuffers/*.h ${D}${includedir}/flatbuffers
 
+    install -d ${D}${includedir}/pthreadpool/include
+    install -m 644 ${S}/_deps/pthreadpool/include/*.h ${D}${includedir}/pthreadpool/include
+
+    install -d ${D}${includedir}/ruy
+    install -m 644 ${S}/_deps/ruy/ruy/*.h ${D}${includedir}/ruy
+    install -d ${D}${includedir}/ruy/profiler
+    install -m 644 ${S}/_deps/ruy/ruy/profiler/*.h ${D}${includedir}/ruy/profiler
+
     for dir in ${tflite_header_dirs}; do
         install -d ${D}${includedir}/$dir
         install -m 644 ${S}/$dir/*.h ${D}${includedir}/$dir
@@ -88,7 +96,6 @@ do_install:append () {
     rm -rf ${D}${libdir}/pkgconfig/flatbuffers.pc
     rm -rf ${D}${libdir}/cmake/gemmlowp
 
-    rm -rf ${D}/_deps/ruy
     rm -rf ${D}/_deps
 
     install -d ${D}${libdir}/pkgconfig
