@@ -1,0 +1,126 @@
+From 142d4afe9a907d55bd10b504a266aa73329c3214 Mon Sep 17 00:00:00 2001
+From: "Hsia-Jun(Randy) Li" <randy.li@synaptics.com>
+Date: Wed, 20 Mar 2024 15:25:12 +0800
+Subject: [PATCH 13/13] v4l2: videodec: only copy the frame visual region
+
+Sometimes the hardware would need an extra memory space, it would
+be hard for a user to notice that.
+
+JIRA:
+CSMSSMART-599
+---
+ .../sys/v4l2/gstv4l2bufferpool.c              | 29 +++++++++++++++++--
+ .../sys/v4l2/gstv4l2bufferpool.h              |  2 ++
+ .../sys/v4l2/gstv4l2videodec.c                | 12 +++++++-
+ 3 files changed, 40 insertions(+), 3 deletions(-)
+
+diff --git a/subprojects/gst-plugins-good/sys/v4l2/gstv4l2bufferpool.c b/subprojects/gst-plugins-good/sys/v4l2/gstv4l2bufferpool.c
+index 9877edb488..c2e4265e43 100644
+--- a/subprojects/gst-plugins-good/sys/v4l2/gstv4l2bufferpool.c
++++ b/subprojects/gst-plugins-good/sys/v4l2/gstv4l2bufferpool.c
+@@ -152,7 +152,7 @@ gst_v4l2_buffer_pool_copy_buffer (GstV4l2BufferPool * pool, GstBuffer * dest,
+     if (!gst_video_frame_map (&src_frame, &pool->caps_info, src, GST_MAP_READ))
+       goto invalid_buffer;
+ 
+-    if (!gst_video_frame_map (&dest_frame, &pool->caps_info, dest,
++    if (!gst_video_frame_map (&dest_frame, &pool->frame_dst_info, dest,
+             GST_MAP_WRITE)) {
+       gst_video_frame_unmap (&src_frame);
+       goto invalid_buffer;
+@@ -516,6 +516,7 @@ gst_v4l2_buffer_pool_set_config (GstBufferPool * bpool, GstStructure * config)
+   GstV4l2BufferPool *pool = GST_V4L2_BUFFER_POOL (bpool);
+   GstV4l2Object *obj = pool->obj;
+   GstCaps *caps;
++  const GstVideoFormatInfo *finfo;
+   guint size, min_buffers, max_buffers;
+   GstAllocator *allocator;
+   GstAllocationParams params;
+@@ -622,8 +623,14 @@ gst_v4l2_buffer_pool_set_config (GstBufferPool * bpool, GstStructure * config)
+   gst_buffer_pool_config_set_params (config, caps, obj->info.size, min_buffers,
+       max_buffers);
+ 
+-  /* keep a GstVideoInfo with defaults for the when we need to copy */
+   gst_video_info_from_caps (&pool->caps_info, caps);
++  finfo = pool->caps_info.finfo;
++  if (finfo && (finfo->format == GST_VIDEO_FORMAT_UNKNOWN ||
++        finfo->format == GST_VIDEO_FORMAT_ENCODED))
++    goto done;
++  /* keep a GstVideoInfo with defaults for the when we need to copy */
++  pool->frame_dst_info = pool->caps_info;
++
+   for (guint i = 0; i < GST_VIDEO_INFO_N_PLANES(&obj->info); i++) {
+     GST_VIDEO_INFO_PLANE_OFFSET(&pool->caps_info, i) =
+       GST_VIDEO_INFO_PLANE_OFFSET(&obj->info, i);
+@@ -2386,3 +2393,21 @@ gst_v4l2_buffer_pool_enable_resolution_change (GstV4l2BufferPool * pool)
+ {
+   gst_v4l2_object_subscribe_event (pool->obj, V4L2_EVENT_SOURCE_CHANGE);
+ }
++
++void
++gst_v4l2_buffer_pool_update_copy_query (GstV4l2BufferPool *self, GstQuery *query)
++{
++  const GstVideoFormatInfo *finfo = self->caps_info.finfo;
++  GstBufferPool *pool;
++  guint size, min, max;
++
++  if (finfo && (finfo->format == GST_VIDEO_FORMAT_UNKNOWN ||
++      finfo->format == GST_VIDEO_FORMAT_ENCODED))
++    return;
++
++  gst_query_parse_nth_allocation_pool(query, 0, &pool, &size, &min, &max);
++  if (!pool) {
++    size = GST_VIDEO_INFO_SIZE(&self->frame_dst_info);
++    gst_query_set_nth_allocation_pool (query, 0, NULL, size, min, max);
++  }
++}
+diff --git a/subprojects/gst-plugins-good/sys/v4l2/gstv4l2bufferpool.h b/subprojects/gst-plugins-good/sys/v4l2/gstv4l2bufferpool.h
+index fce8f03c51..3f6aed83dd 100644
+--- a/subprojects/gst-plugins-good/sys/v4l2/gstv4l2bufferpool.h
++++ b/subprojects/gst-plugins-good/sys/v4l2/gstv4l2bufferpool.h
+@@ -76,6 +76,7 @@ struct _GstV4l2BufferPool
+   GstBufferPool *other_pool;
+   guint size;
+   GstVideoInfo caps_info;   /* Default video information */
++  GstVideoInfo frame_dst_info; /* frame copy video information */
+ 
+   gboolean add_videometa;    /* set if video meta should be added */
+   gboolean enable_copy_threshold; /* If copy_threshold should be set */
+@@ -123,6 +124,7 @@ gboolean            gst_v4l2_buffer_pool_orphan  (GstV4l2Object * v4l2object);
+ 
+ void                gst_v4l2_buffer_pool_enable_resolution_change (GstV4l2BufferPool *self);
+ 
++void                gst_v4l2_buffer_pool_update_copy_query (GstV4l2BufferPool *self, GstQuery *query);
+ G_END_DECLS
+ 
+ #endif /*__GST_V4L2_BUFFER_POOL_H__ */
+diff --git a/subprojects/gst-plugins-good/sys/v4l2/gstv4l2videodec.c b/subprojects/gst-plugins-good/sys/v4l2/gstv4l2videodec.c
+index 2780724313..07a2878f8f 100644
+--- a/subprojects/gst-plugins-good/sys/v4l2/gstv4l2videodec.c
++++ b/subprojects/gst-plugins-good/sys/v4l2/gstv4l2videodec.c
+@@ -1168,12 +1168,22 @@ gst_v4l2_video_dec_decide_allocation (GstVideoDecoder * decoder,
+     GstQuery * query)
+ {
+   GstV4l2VideoDec *self = GST_V4L2_VIDEO_DEC (decoder);
++  GstV4l2BufferPool *cpool;
+   GstClockTime latency;
+   gboolean ret = FALSE;
+ 
+-  if (gst_v4l2_object_decide_allocation (self->v4l2capture, query))
++  if (gst_v4l2_object_decide_allocation (self->v4l2capture, query)) {
++    cpool = GST_V4L2_BUFFER_POOL (gst_v4l2_object_get_buffer_pool
++        (self->v4l2capture));
++
++    if (cpool) {
++      gst_v4l2_buffer_pool_update_copy_query(cpool, query);
++      gst_object_unref (cpool);
++    }
++
+     ret = GST_VIDEO_DECODER_CLASS (parent_class)->decide_allocation (decoder,
+         query);
++  }
+ 
+   if (GST_CLOCK_TIME_IS_VALID (self->v4l2capture->duration)) {
+     latency = self->v4l2capture->min_buffers * self->v4l2capture->duration;
+-- 
+2.17.1
+
