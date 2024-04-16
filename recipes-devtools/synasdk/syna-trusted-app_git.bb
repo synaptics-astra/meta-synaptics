@@ -53,6 +53,9 @@ do_install () {
     if [ "is${CONFIG_BL_TA_FASTLOGO}" = "isy" ]; then
         KERNEL_LOAD_TA+=" libfastlogo.ta"
     fi
+    if [ "is${CONFIG_BL_TA_DHUB}" = "isy" ]; then
+        KERNEL_LOAD_TA+=" libdhub.ta"
+    fi
 
     for i in ${KERNEL_LOAD_TA}; do \
         mv "${D}${nonarch_base_libdir}/ta/${i}" \
