@@ -1,0 +1,8 @@
+#!/bin/sh
+
+if [ -f /factory_setting/MAC_ADDR ]; then
+    mac_addr=$(cat /factory_setting/MAC_ADDR)
+    ip link set eth0 down
+    ip link set eth0 address ${mac_addr}
+    ip link set eth0 up
+fi

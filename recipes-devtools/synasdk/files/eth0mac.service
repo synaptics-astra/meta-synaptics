@@ -1,0 +1,9 @@
+[Unit]
+Description=Setting up MAC address
+Before=network.target
+
+[Service]
+ExecStart=/bin/sh /usr/sbin/eth0mac
+
+[Install]
+WantedBy=single-user.target

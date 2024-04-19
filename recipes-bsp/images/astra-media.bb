@@ -51,6 +51,7 @@ IMAGE_INSTALL:append = " \
     synasdk-synap-models \
     synasdk-synap-framework \
     tensorflow-lite \
+    synasdk-macaddr \
 "
 
 IMAGE_INSTALL:append:myna2 = " \
