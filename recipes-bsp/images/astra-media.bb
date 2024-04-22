@@ -98,7 +98,11 @@ mount_usb () {
 EOF
 }
 
-ROOTFS_POSTPROCESS_COMMAND += "mount_usb; "
+add_version () {
+    echo "${ASTRA_VERSION}" > ${IMAGE_ROOTFS}/etc/astra_version
+}
+
+ROOTFS_POSTPROCESS_COMMAND += "mount_usb; add_version; "
 
 LICENSE = "MIT"
 
