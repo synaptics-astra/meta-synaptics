@@ -80,7 +80,6 @@ IMAGE_INSTALL:append:myna2 = " \
 "
 
 PLATYPUS_DOLPHIN_INSTALL = " \
-    ${TEE_TZK} \
     synasdk-drivers-sm \
     synasdk-drivers-i2c-dyndmx-pinctrl \
     synasdk-drivers-phy-berlin-pcie \
@@ -99,11 +98,13 @@ PLATYPUS_DOLPHIN_INSTALL = " \
 
 IMAGE_INSTALL:append:dolphin = " \
     ${PLATYPUS_DOLPHIN_INSTALL} \
+    ${TEE_TZK} \
     synasdk-drivers-dolphin-clks \
 "
 
 IMAGE_INSTALL:append:platypus = " \
     ${PLATYPUS_DOLPHIN_INSTALL} \
+    ${TEE_OPTEE} \
     synasdk-drivers-sunplus \
     synasdk-drivers-platypus-clks \
 "
