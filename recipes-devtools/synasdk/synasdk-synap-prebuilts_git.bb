@@ -14,8 +14,11 @@ PV = "${SYNAP_VERSION}+git${SRCPV}"
 
 S = "${WORKDIR}/${SYNA_SOURCE_PREFIX}/synap/release"
 
-ARCH_DIR:aarch64 = "aarch64-oe"
-ARCH_DIR:armv7a = "armv7a-oe"
+ARCH_DIR_TYPE:platypus = "platypus"
+ARCH_DIR_TYPE:dolphin = "dolphin"
+
+ARCH_DIR:aarch64 = "aarch64-oe-${ARCH_DIR_TYPE}"
+ARCH_DIR:armv7a = "armv7a-oe-${ARCH_DIR_TYPE}"
 
 INSANE_SKIP:${PN} = "ldflags"
 INHIBIT_PACKAGE_STRIP = "1"
@@ -41,9 +44,4 @@ do_install () {
 
     install -d ${D}${includedir}/synap
     cp ${S}/include/synap/ebg_utils.h ${D}${includedir}/synap
-}
-
-RDEPENDS:${PN}:append:aarch64 = " tensorflow-lite tim-vx"
-do_install:append:aarch64 () {
-    install ${S}/lib/${ARCH_DIR}/libvx_delegate.so ${D}${libdir}
 }
