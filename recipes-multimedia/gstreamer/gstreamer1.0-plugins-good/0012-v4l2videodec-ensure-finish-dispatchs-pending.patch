@@ -1,7 +1,7 @@
-From 7ab9de52a37cb69b6c739d5a5045fca9616415c4 Mon Sep 17 00:00:00 2001
+From eb724bf861502b3cd1432b312047fca045843c83 Mon Sep 17 00:00:00 2001
 From: "Hsia-Jun(Randy) Li" <randy.li@synaptics.com>
 Date: Mon, 15 Apr 2024 16:02:46 +0800
-Subject: [PATCH 12/13] v4l2videodec: ensure finish() dispatchs pending
+Subject: [PATCH 12/15] v4l2videodec: ensure finish() dispatchs pending
 
 The last valid frame could be in a new sequence.
 JIRA:

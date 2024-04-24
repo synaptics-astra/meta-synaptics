@@ -1,7 +1,7 @@
-From 8cb31d608e59cfe85bced41c30ba25479884f695 Mon Sep 17 00:00:00 2001
+From c9014e260991fd9ced5984dcd906416a9dbb414a Mon Sep 17 00:00:00 2001
 From: "Hsia-Jun(Randy) Li" <randy.li@synaptics.com>
 Date: Mon, 27 Feb 2023 15:04:49 +0800
-Subject: [PATCH 04/13] v4l2: update v4l2 header
+Subject: [PATCH 04/15] v4l2: update v4l2 header
 
 We need those macros for AV1, the format for stateful
 AV1 is not defined upstream, I made it a frame unit

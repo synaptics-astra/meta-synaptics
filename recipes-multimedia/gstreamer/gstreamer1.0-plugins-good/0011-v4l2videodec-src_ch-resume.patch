@@ -1,7 +1,7 @@
-From 346b699fc33c86bc15b5e475d968619ee7818491 Mon Sep 17 00:00:00 2001
+From 029fa380b02ce68545c131eaf68c0c15b082b90f Mon Sep 17 00:00:00 2001
 From: "Hsia-Jun(Randy) Li" <randy.li@synaptics.com>
 Date: Thu, 7 Dec 2023 15:20:04 +0800
-Subject: [PATCH 11/13] v4l2videodec: src_ch resume
+Subject: [PATCH 11/15] v4l2videodec: src_ch resume
 
 We could skip a buffer allocation if the buffer requirement is
 the same.

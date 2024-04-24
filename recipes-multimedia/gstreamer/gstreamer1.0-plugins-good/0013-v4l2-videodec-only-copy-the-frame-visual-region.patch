@@ -1,7 +1,7 @@
-From 142d4afe9a907d55bd10b504a266aa73329c3214 Mon Sep 17 00:00:00 2001
+From 41d05e9e56e2d5640bd99d6db5a09da21ebfc5f5 Mon Sep 17 00:00:00 2001
 From: "Hsia-Jun(Randy) Li" <randy.li@synaptics.com>
 Date: Wed, 20 Mar 2024 15:25:12 +0800
-Subject: [PATCH 13/13] v4l2: videodec: only copy the frame visual region
+Subject: [PATCH 13/15] v4l2: videodec: only copy the frame visual region
 
 Sometimes the hardware would need an extra memory space, it would
 be hard for a user to notice that.

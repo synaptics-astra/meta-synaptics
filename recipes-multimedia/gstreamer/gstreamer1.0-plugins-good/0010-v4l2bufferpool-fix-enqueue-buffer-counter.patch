@@ -1,7 +1,7 @@
-From f736636793856c0cdd08f22659cf02dbcf78f742 Mon Sep 17 00:00:00 2001
+From 1b51a2297d28b880879b58f4d004b4d906612cfa Mon Sep 17 00:00:00 2001
 From: "Hsia-Jun(Randy) Li" <randy.li@synaptics.com>
 Date: Tue, 20 Feb 2024 15:48:56 +0800
-Subject: [PATCH 10/13] v4l2bufferpool: fix enqueue buffer counter
+Subject: [PATCH 10/15] v4l2bufferpool: fix enqueue buffer counter
 
 If the kernel driver returns a valid buffer, it is obviously
 not in the kernel queue anymore.

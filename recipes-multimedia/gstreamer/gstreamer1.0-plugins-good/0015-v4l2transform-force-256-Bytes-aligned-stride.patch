@@ -1,0 +1,56 @@
+From 088ed0e709a6802fdcf9f4924784c4a830499930 Mon Sep 17 00:00:00 2001
+From: "Hsia-Jun(Randy) Li" <randy.li@synaptics.com>
+Date: Tue, 23 Apr 2024 18:26:59 +0800
+Subject: [PATCH 15/15] v4l2transform: force 256 Bytes aligned stride
+
+It is the mandantory requirement from the device.
+
+Signed-off-by: Hsia-Jun(Randy) Li <randy.li@synaptics.com>
+---
+ .../sys/v4l2/gstv4l2transform.c               | 24 +++++++++++++++++--
+ 1 file changed, 22 insertions(+), 2 deletions(-)
+
+diff --git a/subprojects/gst-plugins-good/sys/v4l2/gstv4l2transform.c b/subprojects/gst-plugins-good/sys/v4l2/gstv4l2transform.c
+index e485299283..9ed16d4781 100644
+--- a/subprojects/gst-plugins-good/sys/v4l2/gstv4l2transform.c
++++ b/subprojects/gst-plugins-good/sys/v4l2/gstv4l2transform.c
+@@ -344,14 +344,34 @@ gst_v4l2_transform_propose_allocation (GstBaseTransform * trans,
+     GstQuery * decide_query, GstQuery * query)
+ {
+   GstV4l2Transform *self = GST_V4L2_TRANSFORM (trans);
++  GstStructure *props;
++  guint video_idx;
+   gboolean ret = FALSE;
+ 
+   GST_DEBUG_OBJECT (self, "called");
+ 
+-  if (decide_query == NULL)
++  if (decide_query == NULL) {
+     ret = TRUE;
+-  else
++  } else {
+     ret = gst_v4l2_object_propose_allocation (self->v4l2output, query);
++    if (ret) {
++      gst_query_find_allocation_meta (query, GST_VIDEO_META_API_TYPE,
++                                      &video_idx);
++      gst_query_remove_nth_allocation_meta(query, video_idx);
++
++      props = gst_structure_new ("video-meta",
++        "padding-top", G_TYPE_UINT, 0,
++        "padding-bottom", G_TYPE_UINT, 0,
++        "padding-left", G_TYPE_UINT, 0,
++        "padding-right", G_TYPE_UINT, 0,
++        /* 256-byte alignment */
++        "stride-align0", G_TYPE_UINT, 255,
++        "stride-align1", G_TYPE_UINT, 255,
++        NULL);
++      gst_query_add_allocation_meta (query, GST_VIDEO_META_API_TYPE, props);
++      gst_structure_free (props);
++    }
++  }
+ 
+   if (ret)
+     ret = GST_BASE_TRANSFORM_CLASS (parent_class)->propose_allocation (trans,
+-- 
+2.17.1
+

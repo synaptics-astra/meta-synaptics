@@ -1,7 +1,7 @@
-From 5fd3402bad8c3c20b1992418b3e3fe56256b8969 Mon Sep 17 00:00:00 2001
+From 23e7aaa2084bf0823080d18000ab69e189b10710 Mon Sep 17 00:00:00 2001
 From: "Hsia-Jun(Randy) Li" <randy.li@synaptics.com>
 Date: Tue, 26 Sep 2023 15:37:18 +0800
-Subject: [PATCH 05/13] v4l2: use the strides and offsets from the driver
+Subject: [PATCH 05/15] v4l2: use the strides and offsets from the driver
 
 The negotiation could endup a size much larger than the driver
 could support.
