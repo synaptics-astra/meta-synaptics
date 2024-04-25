@@ -6,4 +6,4 @@ Before=network.target
 ExecStart=/bin/sh /usr/sbin/eth0mac
 
 [Install]
-WantedBy=single-user.target
+WantedBy=multi-user.target
