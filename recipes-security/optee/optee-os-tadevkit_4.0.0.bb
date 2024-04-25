@@ -8,17 +8,21 @@ LIC_FILES_CHKSUM = "file://${S}/LICENSE;md5=c1f21c4f72f372ef38a5a4aee55ec173"
 SRC_URI = "${SYNA_SRC_OPTEE_DEV}"
 
 DEPENDS += "python3-pycryptodome-native"
+require ../../recipes-devtools/synasdk/synasdk-config.inc
 
 S = "${WORKDIR}/${SYNA_SOURCE_PREFIX}/tee/optee_dev"
 
 do_install() {
+    source ${CONFIG_FILE}
+    source ${CHIP_RC_FILE}
+
     #install TA devkit
     install -d ${D}${includedir}/optee/export-user_ta/
-    for f in ${S}/export-ta_${OPTEE_ARCH}/* ; do
+    for f in ${S}/${syna_chip_name}/export-ta_${OPTEE_ARCH}/* ; do
         cp -aR $f ${D}${includedir}/optee/export-user_ta/
     done
     mkdir -p ${D}${nonarch_base_libdir}/optee_armtz/
-    install -D -p -m0444 ${S}/export-ta_${OPTEE_ARCH}/ta/*.ta ${D}${nonarch_base_libdir}/optee_armtz/
+    install -D -p -m0444 ${S}/${syna_chip_name}/export-ta_${OPTEE_ARCH}/ta/*.ta ${D}${nonarch_base_libdir}/optee_armtz/
 }
 
 do_deploy() {
