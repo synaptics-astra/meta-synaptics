@@ -88,6 +88,7 @@ PLATYPUS_DOLPHIN_INSTALL = " \
     syna-trusted-app \
     synasdk-synap-module \
     tim-vx \
+    tflite-vx-delegate \
     libdrm-tests \
 "
 
