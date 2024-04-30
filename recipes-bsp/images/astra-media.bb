@@ -62,6 +62,7 @@ IMAGE_INSTALL:append = " \
     synasdk-synap-framework \
     tensorflow-lite \
     synasdk-macaddr \
+    ethtool \
 "
 
 IMAGE_INSTALL:append:myna2 = " \
