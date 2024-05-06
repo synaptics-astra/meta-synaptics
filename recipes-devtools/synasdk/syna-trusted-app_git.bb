@@ -63,6 +63,10 @@ do_install () {
         KERNEL_LOAD_TA+=" libdhub.ta"
     fi
 
+    if [ "is${CONFIG_MIPI_DSI_TA}" = "isy" ]; then
+        KERNEL_LOAD_TA+=" libmipi_dsi.ta"
+    fi
+
     for i in ${KERNEL_LOAD_TA}; do \
         mv "${D}${nonarch_base_libdir}/ta/${i}" \
              "${D}${nonarch_base_libdir}/firmware/ta/${i}"
@@ -107,6 +111,15 @@ do_deploy () {
             params="$params -i DHUB -d ${input_ta_path}/libdhub.ta/libdhub.ta"
         else
             echo "no libdhub.ta under ${input_ta_path}!!!"
+            exit 1
+        fi
+    fi
+
+    if [ "is${CONFIG_MIPI_DSI_TA}" = "isy" ]; then
+        if [ -f ${input_ta_path}/libmipi_dsi.ta/libmipi_dsi.ta ]; then
+            params="$params -i MIPI -d ${input_ta_path}/libmipi_dsi.ta/libmipi_dsi.ta"
+        else
+            echo "no libmipi_dsi.ta under ${input_ta_path}!!!"
             exit 1
         fi
     fi
