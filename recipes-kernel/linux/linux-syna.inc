@@ -26,9 +26,7 @@ DEPENDS:append:syna = " \
     vim-native \
 "
 
-CMDLINE_EMMC_BOOT = "console=ttyS0,115200 earlycon=uart8250,mmio32,0xf7fcd000 rootfstype=ext4"
-# CMDLINE for Synaptics SL1620
-CMDLINE_EMMC_BOOT:myna2 = "console=ttyS0,115200 rootfstype=ext4 root=/dev/mmcblk0p12 ro cma=0x4000000@0x38800000"
+CMDLINE_EMMC_BOOT = "console=ttyS0,115200 rootfstype=ext4"
 
 # Set the verbosity of kernel messages during runtime
 # You can define CMDLINE_DEBUG in your local.conf or distro.conf to override this behaviour
