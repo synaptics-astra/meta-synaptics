@@ -7,6 +7,8 @@ LICENSE = "BSD-2-Clause"
 LIC_FILES_CHKSUM = "file://${S}/LICENSE;md5=c1f21c4f72f372ef38a5a4aee55ec173"
 SRC_URI = "${SYNA_SRC_OPTEE_DEV}"
 
+SRCREV_optee_dev = "${SYNA_SRCREV_OPTEE_DEV}"
+
 DEPENDS += "python3-pycryptodome-native"
 require ../../recipes-devtools/synasdk/synasdk-config.inc
 
