@@ -27,6 +27,8 @@ DEPENDS:append:syna = " \
 "
 
 CMDLINE_EMMC_BOOT = "console=ttyS0,115200 rootfstype=ext4"
+CMDLINE_EMMC_BOOT:append = "${@bb.utils.contains('KGDB_ENABLE', '1', ' kgdboc=ttyS0,115200', '', d)}"
+CMDLINE_EMMC_BOOT:append = "${@bb.utils.contains('KGDB_WAIT', '1', ' kgdbwait', '', d)}"
 
 # Set the verbosity of kernel messages during runtime
 # You can define CMDLINE_DEBUG in your local.conf or distro.conf to override this behaviour

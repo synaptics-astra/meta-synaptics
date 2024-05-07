@@ -23,6 +23,10 @@ SRCREV_linux_overlay = "${SYNA_SRCREV_LINUX_5_15_OVERLAY}"
 
 SRC_URI += "${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'file://systemd.cfg', '', d)}"
 SRC_URI += "${@bb.utils.contains('DISTRO_FEATURES', 'bluetooth', 'file://add-bcm-bt-driver.cfg', '', d)}"
+SRC_URI += "${@bb.utils.contains('KGDB_ENABLE', '1', ' \
+    file://0001-kgdb_Fix_incorrect_single_stepping_into_the_irq_handle.patch \
+    file://debug_info.cfg \
+    file://kgdb.cfg', '', d)}"
 
 python () {
     # OpenBMC loads in kernel features via other mechanisms so this check
