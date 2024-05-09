@@ -63,6 +63,7 @@ IMAGE_INSTALL:append = " \
     tensorflow-lite \
     synasdk-macaddr \
     ethtool \
+    gstreamer1.0-libav \
 "
 
 IMAGE_INSTALL:append:myna2 = " \
@@ -72,7 +73,6 @@ IMAGE_INSTALL:append:myna2 = " \
     synasdk-drivers-rtl8363nb \
     synasdk-drivers-tlc5917 \
     brcm-patchram-plus \
-    gstreamer1.0-libav \
     synasdk-brcm-bt-start \
 "
 
