@@ -1,0 +1,16 @@
+[Unit]
+Description=VSI ISP Media Service
+
+[Service]
+Type=oneshot
+ExecStart=-/bin/bash /usr/sbin/isp_media_server.sh start
+ExecStop=-/bin/bash /usr/sbin/isp_media_server.sh stop
+Restart=no
+RemainAfterExit=yes
+StandardError=journal
+PermissionsStartOnly=true
+IgnoreSIGPIPE=no
+
+[Install]
+WantedBy=multi-user.target
+
