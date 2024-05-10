@@ -6,13 +6,13 @@ LICENSE_FLAGS = "Synaptics-EULA"
 DEPENDS += "qtbase qtdeclarative qtmultimedia qtxmlpatterns libpng jpeg udev python3"
 RDEPENDS_${PN} += "qtdeclarative-qmlplugins qtgraphicaleffects-qmlplugins"
 
-SRC_URI = "${SYNA_SRC_VIDEOSDK}"
+SRC_URI = "${SYNA_SRC_DEMOS}"
 
-SRCREV = "${SYNA_SRCREV_VIDEOSDK}"
+SRCREV = "${SYNA_SRCREV_DEMOS}"
 
 PV = "${ASTRA_VERSION}+git${SRCPV}"
 
-S = "${WORKDIR}/${SYNA_SOURCE_PREFIX}/application/videosdk/qtrenderingserver"
+S = "${WORKDIR}/${SYNA_SOURCE_PREFIX}/application/demos/qtrenderingserver"
 
 inherit qmake5
 

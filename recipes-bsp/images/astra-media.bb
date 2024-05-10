@@ -31,7 +31,7 @@ IMAGE_INSTALL:append = " \
     synasdk-drivers-tps6286x \
     synasdk-drivers-dwc3-syna \
     synasdk-drivers-phy-syna-usb \
-    synasdk-videosdk \
+    synasdk-demos \
     alsa-utils \
     gstreamer1.0-meta-base \
     gstreamer1.0-meta-video \

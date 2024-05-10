@@ -1,4 +1,4 @@
-DESCRIPTION = "VIDEOSDK"
+DESCRIPTION = "DEMOS"
 SECTION = "multimedia"
 LICENSE = "CLOSED"
 LICENSE_FLAGS = "Synaptics-EULA"
@@ -13,11 +13,11 @@ DEPENDS = " \
     libdrm \
 "
 
-SRC_URI = "${SYNA_SRC_VIDEOSDK}"
+SRC_URI = "${SYNA_SRC_DEMOS}"
 
-S = "${WORKDIR}/${SYNA_SOURCE_PREFIX}/application/videosdk"
+S = "${WORKDIR}/${SYNA_SOURCE_PREFIX}/application/demos"
 
-SRCREV = "${SYNA_SRCREV_VIDEOSDK}"
+SRCREV = "${SYNA_SRCREV_DEMOS}"
 
 PV = "${ASTRA_VERSION}+git${SRCPV}"
 
@@ -35,7 +35,7 @@ CLEANBROKEN = "1"
 
 do_compile() {
     topdir="${WORKDIR}/${SYNA_SOURCE_PREFIX}"
-    outdir_intermediate="${B}/videosdk"
+    outdir_intermediate="${B}/demos"
     mkdir -p "${outdir_intermediate}"
 
     DESTDIR="${outdir_intermediate}" \
@@ -58,7 +58,7 @@ do_install () {
     for i in \
         codec-demo;
     do
-        install -m 0755 ${B}/videosdk/usr/bin/$i ${D}${bindir}
+        install -m 0755 ${B}/demos/usr/bin/$i ${D}${bindir}
     done
 
     install -d ${D}${rootdir}
@@ -66,9 +66,9 @@ do_install () {
 }
 
 PACKAGES = " \
-    synasdk-videosdk \
-    synasdk-videosdk-dev \
-    synasdk-videosdk-dbg \
+    synasdk-demos \
+    synasdk-demos-dev \
+    synasdk-demos-dbg \
 "
 
 FILES:${PN} = " \
