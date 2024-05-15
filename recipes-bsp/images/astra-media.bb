@@ -62,6 +62,7 @@ IMAGE_INSTALL:append = " \
     synasdk-synap-framework \
     tensorflow-lite \
     synasdk-macaddr \
+    synasdk-modules-load \
     ethtool \
     gstreamer1.0-libav \
 "
