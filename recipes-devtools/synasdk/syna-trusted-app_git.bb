@@ -42,6 +42,12 @@ do_install () {
     install -d ${D}${nonarch_base_libdir}/firmware
     install -d ${D}${nonarch_base_libdir}/firmware/ta
 
+    # 1316a183 is the TA UUID common prefix.
+    install -d ${D}${nonarch_base_libdir}/optee_armtz
+    find "${S}/ta_enc" -type f \
+        -regex ".*${syna_chip_name}/${syna_chip_rev}.*1316a183.*\.ta$" -exec sh -c \
+        'install -Dm0644 {} ${D}${nonarch_base_libdir}/optee_armtz/$(basename {})' \;
+
     KERNEL_LOAD_TA=""
     if [ "is${CONFIG_TA_GFX_IMG_LINUX}" = "isy" ]; then
         KERNEL_LOAD_TA+="libgfx_img_linux.ta"
@@ -66,6 +72,7 @@ do_install () {
 FILES:${PN} = " \
     ${nonarch_base_libdir}/ta \
     ${nonarch_base_libdir}/firmware/ta \
+    ${nonarch_base_libdir}/optee_armtz \
 "
 
 do_deploy () {
