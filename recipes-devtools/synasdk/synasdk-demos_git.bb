@@ -28,10 +28,16 @@ COMPATIBLE_MACHINE = "syna"
 CC:remove = "-Werror=format-security"
 CXX:remove = "-Werror=format-security"
 
+TARGET_HW:dolphin = "dolphin"
+TARGET_HW:platypus = "platypus"
+TARGET_HW:myna2 = "myna2"
+
 V4L2_ENABLE = "1"
 V4L2_ENABLE:myna2 = "0"
 
 CLEANBROKEN = "1"
+
+
 
 do_compile() {
     topdir="${WORKDIR}/${SYNA_SOURCE_PREFIX}"
@@ -41,14 +47,14 @@ do_compile() {
     DESTDIR="${outdir_intermediate}" \
     SDKTARGETSYSROOT="${STAGING_DIR_TARGET}" \
     TOPDIR="${WORKDIR}/${SYNA_SOURCE_PREFIX}" \
-    CURR_MACH="${syna_chip_name}" \
+    CURR_MACH="${TARGET_HW}" \
     V4L2_ENABLE="${V4L2_ENABLE}" \
     ${MAKE} -C ${S}
 
     DESTDIR="${outdir_intermediate}" \
     SDKTARGETSYSROOT="${STAGING_DIR_TARGET}" \
     TOPDIR="${WORKDIR}/${SYNA_SOURCE_PREFIX}" \
-    CURR_MACH="${syna_chip_name}" \
+    CURR_MACH="${TARGET_HW}" \
     V4L2_ENABLE="${V4L2_ENABLE}" \
     ${MAKE} -C ${S} install
 }
