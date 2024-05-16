@@ -90,7 +90,6 @@ PLATYPUS_DOLPHIN_INSTALL = " \
     synasdk-brcm-bt-start \
     imgtec-pvr-firmware \
     syna-trusted-app \
-    synasdk-synap-module \
     tim-vx \
     tflite-vx-delegate \
     libdrm-tests \
