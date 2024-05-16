@@ -1,6 +1,7 @@
 [Unit]
 Description=TEE Supplicant on %i
-Before=systemd-modules-load.service
+After=systemd-sysctl.service local-fs.target
+Before=systemd-networkd.service
 
 [Service]
 User=root
