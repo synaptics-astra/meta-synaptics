@@ -23,16 +23,16 @@ do_install () {
     install -m 0755 ${S}/res/DemoVideo.qml ${D}${bindir}
     install -m 0755 ${S}/res/DemoVideo_lcd.qml ${D}${bindir}
     install -m 0755 ${S}/res/DemoVideo_445x250.qml ${D}${bindir}
-    install -m 0755 ${S}/res/DemoVideo_dvf_800_1280.qml ${D}${bindir}
+    install -m 0755 ${S}/res/DemoVideo_myna2_800_1280.qml ${D}${bindir}
     install -m 0755 ${S}/res/Animation1.qml ${D}${bindir}
     install -m 0755 ${S}/res/Animation2.qml ${D}${bindir}
     install -m 0755 ${S}/res/SynaAVeda.jpg ${D}${bindir}
-    install -m 0755 ${S}/res/680_secondary.qml ${D}${bindir}
-    install -m 0755 ${S}/res/680_primary.qml ${D}${bindir}
-    install -m 0755 ${S}/res/120_secondary.qml ${D}${bindir}
-    install -m 0755 ${S}/res/640_primary.qml ${D}${bindir}
-    install -m 0755 ${S}/res/120_primary.qml ${D}${bindir}
-    install -m 0755 ${S}/res/640_primary_44.qml ${D}${bindir}
-    install -m 0755 ${S}/res/680_primary_44.qml ${D}${bindir}
+    install -m 0755 ${S}/res/dolphin_secondary.qml ${D}${bindir}
+    install -m 0755 ${S}/res/dolphin_primary.qml ${D}${bindir}
+    install -m 0755 ${S}/res/myna2_secondary.qml ${D}${bindir}
+    install -m 0755 ${S}/res/platypus_primary.qml ${D}${bindir}
+    install -m 0755 ${S}/res/myna2_primary.qml ${D}${bindir}
+    install -m 0755 ${S}/res/platypus_primary_44.qml ${D}${bindir}
+    install -m 0755 ${S}/res/dolphin_primary_44.qml ${D}${bindir}
     install -m 0755 ${S}/res/Statistics.qml ${D}${bindir}
 }
