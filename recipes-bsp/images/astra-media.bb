@@ -31,6 +31,7 @@ IMAGE_INSTALL:append = " \
     synasdk-drivers-tps6286x \
     synasdk-drivers-dwc3-syna \
     synasdk-drivers-phy-syna-usb \
+    synasdk-drivers-syna-clk \
     synasdk-demos \
     alsa-utils \
     gstreamer1.0-meta-base \
@@ -73,6 +74,7 @@ IMAGE_INSTALL:append:myna2 = " \
     synasdk-drivers-dspg-keypad \
     synasdk-drivers-rtl8363nb \
     synasdk-drivers-tlc5917 \
+    synasdk-drivers-myna2-clks \
     brcm-patchram-plus \
     synasdk-brcm-bt-start \
 "
@@ -85,6 +87,7 @@ PLATYPUS_DOLPHIN_INSTALL = " \
     synasdk-drivers-pcie-berlin \
     synasdk-drivers-berlin-ir \
     synasdk-drivers-syna-hwmon \
+    synasdk-drivers-dolphin-pll \
     synasdk-brcm-bt-start \
     imgtec-pvr-firmware \
     syna-trusted-app \
@@ -96,11 +99,13 @@ PLATYPUS_DOLPHIN_INSTALL = " \
 
 IMAGE_INSTALL:append:dolphin = " \
     ${PLATYPUS_DOLPHIN_INSTALL} \
+    synasdk-drivers-dolphin-clks \
 "
 
 IMAGE_INSTALL:append:platypus = " \
     ${PLATYPUS_DOLPHIN_INSTALL} \
     synasdk-drivers-sunplus \
+    synasdk-drivers-platypus-clks \
 "
 
 TOOLCHAIN_TARGET_TASK:append = " synasdk-synap-framework-staticdev"
