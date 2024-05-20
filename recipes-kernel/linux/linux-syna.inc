@@ -6,6 +6,8 @@ SECTION = "kernel"
 LICENSE = "GPLv2"
 LIC_FILES_CHKSUM = "file://COPYING;md5=6bc538ed5bd9a7fc9398086aedcd7e46"
 
+INITRAMFS_IMAGE = "core-image-initramfs-boot"
+
 require recipes-kernel/linux/linux-yocto.inc
 
 EXTRA_KERNEL_CONFIGME_DEPENDS = ""
@@ -94,7 +96,7 @@ do_deploy:append() {
     security_keys_path="${STAGING_DATADIR_NATIVE}/syna/keys/${syna_chip_name}/${syna_chip_rev}"
 
     # Compress the kernel with lz4
-    cat ${D}/boot/${KERNEL_IMAGETYPE}-${PV} | lz4 -f -9 -B4 > ${D}/boot/${KERNEL_IMAGETYPE}-${PV}.lz4
+    cat ${DEPLOYDIR}/${KERNEL_IMAGETYPE}-initramfs-${MACHINE}.bin | lz4 -f -9 -B4 > ${D}/boot/${KERNEL_IMAGETYPE}-${PV}.lz4
     # Combine Kernel Image and Device Tree in a single image
     genimg -n boot -V 0 -v 0 -i LNXB -d ${D}/boot/${KERNEL_IMAGETYPE}-${PV}.lz4 -i LDTB -d ${D}/boot/${dtb_name}.dtb -o ${DEPLOYDIR}/lz4Image-dtb.${dtb_name}
     # Pack with mkbootimg

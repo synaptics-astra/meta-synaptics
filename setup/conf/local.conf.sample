@@ -264,3 +264,7 @@ DISTRO_FEATURES:append = " systemd"
 VIRTUAL-RUNTIME_init_manager = "systemd"
 DISTRO_FEATURES_BACKFILL_CONSIDERED += "sysvinit"
 VIRTUAL-RUNTIME_initscripts = ""
+
+#Use and bundle initramfs
+INITRAMFS_IMAGE_BUNDLE = "1"
+INITRAMFS_IMAGE = "core-image-initramfs-boot"
