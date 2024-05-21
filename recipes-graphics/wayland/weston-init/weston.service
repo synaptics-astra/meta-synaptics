@@ -1,6 +1,7 @@
 [Unit]
 Description=Weston Wayland Compositor
 RequiresMountsFor=/run
+After=synasdk-modules-load
 
 [Service]
 EnvironmentFile=-/etc/default/weston
