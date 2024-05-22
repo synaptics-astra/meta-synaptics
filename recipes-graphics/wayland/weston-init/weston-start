@@ -25,4 +25,4 @@ if test -z "$XDG_RUNTIME_DIR"; then
         fi
 fi
 
-exec weston --backend=$BACKEND --drm-device=$CARD --tty=$WESTON_TTY
+exec weston --backend=$BACKEND --tty=$WESTON_TTY
