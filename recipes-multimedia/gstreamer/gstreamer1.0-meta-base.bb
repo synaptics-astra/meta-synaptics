@@ -36,7 +36,7 @@ RDEPENDS:gstreamer1.0-meta-base = "\
     gstreamer1.0-plugins-base-typefindfunctions \
     gstreamer1.0-plugins-base-videoconvertscale \
     gstreamer1.0-plugins-good-autodetect \
-    gstreamer1.0-plugins-good-audiomixer \
+    gstreamer1.0-plugins-base-audiomixer \
     gstreamer1.0-plugins-good-soup"
 
 RRECOMMENDS:gstreamer1.0-meta-x11-base = "\
