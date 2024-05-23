@@ -32,6 +32,7 @@ IMAGE_INSTALL:append = " \
     synasdk-drivers-dwc3-syna \
     synasdk-drivers-phy-syna-usb \
     synasdk-drivers-syna-clk \
+    synasdk-drivers-berlin-chipid \
     synasdk-demos \
     alsa-utils \
     gstreamer1.0-meta-base \
@@ -70,6 +71,7 @@ IMAGE_INSTALL:append = " \
 
 IMAGE_INSTALL:append:myna2 = " \
     ${TEE_OPTEE} \
+    synasdk-drivers-pinctrl-myna2 \
     synasdk-drivers-dspg-hookswitch \
     synasdk-drivers-dspg-keypad \
     synasdk-drivers-rtl8363nb \
@@ -99,12 +101,14 @@ PLATYPUS_DOLPHIN_INSTALL = " \
 IMAGE_INSTALL:append:dolphin = " \
     ${PLATYPUS_DOLPHIN_INSTALL} \
     synasdk-drivers-dolphin-clks \
+    synasdk-drivers-pinctrl-dolphin \
 "
 
 IMAGE_INSTALL:append:platypus = " \
     ${PLATYPUS_DOLPHIN_INSTALL} \
     synasdk-drivers-sunplus \
     synasdk-drivers-platypus-clks \
+    synasdk-drivers-pinctrl-platypus \
 "
 
 TOOLCHAIN_TARGET_TASK:append = " synasdk-synap-framework-staticdev"
