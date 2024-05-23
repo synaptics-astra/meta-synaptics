@@ -4,6 +4,7 @@ After=tee-supplicant.service
 
 [Service]
 ExecStart=/bin/sh /usr/sbin/synasdk-modules-load
+Type=oneshot
 
 [Install]
 WantedBy=multi-user.target
