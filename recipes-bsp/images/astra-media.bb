@@ -68,6 +68,7 @@ IMAGE_INSTALL:append = " \
     ethtool \
     gstreamer1.0-libav \
     synasdk-v4l2isp-daemon \
+    syna-mount-generator \
 "
 
 IMAGE_INSTALL:append:myna2 = " \

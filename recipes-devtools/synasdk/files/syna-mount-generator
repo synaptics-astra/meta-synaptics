@@ -1,0 +1,40 @@
+#!/bin/sh
+
+mount_location=$1
+
+if cat /proc/cmdline| grep mmcblk1; then
+  root_block=mmcblk1
+  root_device=/dev/${root_block}
+elif cat /proc/cmdline| grep mmcblk0; then
+  root_block=mmcblk0
+  root_device=/dev/${root_block}
+else
+  echo "Not boot from mmc!"
+  exit 1
+fi
+
+echo "\
+[Unit]
+Before=local-fs.target
+After=blockdev@dev-${root_block}p1.target
+
+[Mount]
+What=${root_device}p1
+Where=/factory_setting" \
+	> ${mount_location}/factory_setting.mount
+
+echo "\
+[Unit]
+Before=local-fs.target
+Requires=systemd-fsck@dev-${root_block}p18.service
+After=systemd-fsck@dev-${root_block}p18.service
+After=blockdev@dev-${root_block}p18.target
+
+[Mount]
+What=${root_device}p18
+Where=/home" \
+	> ${mount_location}/home.mount
+
+cd ${mount_location}/local-fs.target.requires
+ln -s ../factory_setting.mount factory_setting.mount
+ln -s ../home.mount home.mount

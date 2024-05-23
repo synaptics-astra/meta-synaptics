@@ -299,20 +299,8 @@ IMAGE_CMD:synaimg () {
     cp ${DEPLOY_DIR_IMAGE}/emmc_image_list ${DEPLOY_DIR_IMAGE}/emmc_part_list ${DEPLOY_DIR_IMAGE}/${SYNAIMG_DEPLOY_SUBDIR}
 }
 
-fstab_mount_factory_setting () {
-    awk '/^#/ { c++ }; /factory_setting/ {print "/dev/mmcblk0p"NR-c"\t/factory_setting\tauto\tdefaults 0 0" }' \
-        ${DEPLOY_DIR_IMAGE}/emmc_part_list \
-        >> ${IMAGE_ROOTFS}/etc/fstab
-}
-
 fstab_mount_opt () {
     awk '/^#/ { c++}; /^opt/ {print "/dev/mmcblk0p"NR-c"\t/opt\tauto\tdefaults 0 2" }' \
-        ${DEPLOY_DIR_IMAGE}/emmc_part_list \
-        >> ${IMAGE_ROOTFS}/etc/fstab
-}
-
-fstab_mount_home () {
-    awk '/^#/ { c++}; /^home|^userdata/ {print "/dev/mmcblk0p"NR-c"\t/home\tauto\tdefaults 0 2";exit; }' \
         ${DEPLOY_DIR_IMAGE}/emmc_part_list \
         >> ${IMAGE_ROOTFS}/etc/fstab
 }
@@ -329,8 +317,6 @@ fstab_mount_app () {
         >> ${IMAGE_ROOTFS}/etc/fstab
 }
 
-ROOTFS_POSTPROCESS_COMMAND += "fstab_mount_factory_setting; "
 ROOTFS_POSTPROCESS_COMMAND += "fstab_mount_opt; "
-ROOTFS_POSTPROCESS_COMMAND += "fstab_mount_home; "
 # Change these if you want default mkfs behavior (i.e. create minimal inode number)
 EXTRA_IMAGECMD:synaimg ?= "-i 4096"
