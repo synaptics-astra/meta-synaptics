@@ -6,11 +6,6 @@ LICENSE_FLAGS = "Synaptics-EULA"
 
 COMPATIBLE_MACHINE = "platypus|dolphin"
 
-KERNEL_MODULE_AUTOLOAD:append = " synap"
-KERNEL_MODULE_PROBECONF:append = " synap"
-
-module_conf_synap = "options synap ta_path=/lib/ta/"
-
 inherit module
 
 SRC_URI = "${SYNA_SRC_SYNAP_DRIVER}"

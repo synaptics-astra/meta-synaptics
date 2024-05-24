@@ -18,7 +18,13 @@ SYNA_KERNEL_MODULE_LOAD = " \
 SYNA_KERNEL_MODULE_LOAD:append:dolphin = " \
     scaler \
     vvcam_video \
+    synap \
 "
+
+SYNA_KERNEL_MODULE_LOAD:append:platypus = " \
+    synap \
+"
+
 
 do_install() {
     install -d ${D}${sbindir}
