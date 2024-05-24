@@ -15,6 +15,11 @@ SYNA_KERNEL_MODULE_LOAD = " \
     pvrsrvkm \
 "
 
+SYNA_KERNEL_MODULE_LOAD:append:dolphin = " \
+    scaler \
+    vvcam_video \
+"
+
 do_install() {
     install -d ${D}${sbindir}
     install -d ${D}${systemd_system_unitdir}
