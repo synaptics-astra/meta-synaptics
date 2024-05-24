@@ -4,4 +4,6 @@ IMAGE_INSTALL:append = " \
     qtwayland qt3d qtquick3d \
     synasdk-qtrenderingserver \
     qtbase-examples qtdeclarative-examples \
+    synasdk-syna-player-framework \
+    synasdk-syna-video-player \
 "
