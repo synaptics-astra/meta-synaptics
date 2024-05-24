@@ -6,7 +6,6 @@ PACKAGE_INSTALL:append = " \
                             synasdk-drivers-berlin-chipid"
 
 PACKAGE_INSTALL:append:myna2 = " \
-                                    initramfs-module-debug \
                                     synasdk-drivers-myna2-clks \
                                     synasdk-drivers-pinctrl-myna2"
 
