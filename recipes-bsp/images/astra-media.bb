@@ -67,7 +67,6 @@ IMAGE_INSTALL:append = " \
     synasdk-modules-load \
     ethtool \
     gstreamer1.0-libav \
-    synasdk-v4l2isp-daemon \
     syna-mount-generator \
 "
 
@@ -106,6 +105,7 @@ IMAGE_INSTALL:append:dolphin = " \
     ${PLATYPUS_DOLPHIN_INSTALL} \
     synasdk-drivers-dolphin-clks \
     synasdk-drivers-pinctrl-dolphin \
+    synasdk-v4l2isp-daemon \
 "
 
 IMAGE_INSTALL:append:platypus = " \
