@@ -68,6 +68,9 @@ IMAGE_INSTALL:append = " \
     ethtool \
     gstreamer1.0-libav \
     syna-mount-generator \
+    gstreamer1.0-plugins-base-compositor \
+    gstreamer1.0-plugins-base-videorate \
+    gstreamer1.0-plugins-good-cairo \
 "
 
 IMAGE_INSTALL:append:myna2 = " \
