@@ -30,8 +30,9 @@ EXTRA_OEMAKE += "TA_DEV_KIT_DIR=${TA_DEV_KIT_DIR} \
 CFLAGS += "-Wno-error=deprecated-declarations"
 
 do_compile() {
-	export CFLAGS="${CFLAGS} --sysroot=${STAGING_DIR_HOST}"
-	export LIBGCC_LOCATE_CFLAGS=--sysroot=${STAGING_DIR_HOST}
+    export CFLAGS="${CFLAGS} --sysroot=${STAGING_DIR_HOST}"
+    export LIBGCC_LOCATE_CFLAGS=--sysroot=${STAGING_DIR_HOST}
+    export OPTEE_TA_ENC="${OPTEE_TA_ENC}"
     cd ${S}
     # Top level makefile doesn't seem to handle parallel make gracefully
     oe_runmake xtest

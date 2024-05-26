@@ -191,9 +191,15 @@ elif [ "$_VALID_MACHINES" -gt 1 ]; then
     echo -e "##\n## That looks very suspicious, you should check your source tree\n##"
 fi
 
+# encrypt OPTEE TA with production key by default
+if [[ "${OPTEE_TA_ENC}" != "dev" ]]; then
+    OPTEE_TA_ENC="prod"
+fi
+
 # Change settings according environment
 sed -e "s/##MACHINE##/${MACHINE}/g" \
     -e "s/##BUILD_NUMBER##/\"${BUILD_NUMBER}\"/" \
+    -e "s/##OPTEE_TA_ENC##/\"${OPTEE_TA_ENC}\"/" \
     -e "s|##META_SYNAPTICS_DIR##|$(readlink -f ${_PWD_PREV}/meta-synaptics)|" \
     -i conf/local.conf
 
@@ -221,6 +227,7 @@ fi
 cat <<EOF
 Configuration files have been created for the following configuration:
  MACHINE: $MACHINE
+ OPTEE_TA_ENC: $OPTEE_TA_ENC
 EOF
 
 # Since this script is sourced, be careful not to pollute caller's environment with temp variables

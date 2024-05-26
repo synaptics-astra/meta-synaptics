@@ -27,8 +27,9 @@ B = "${WORKDIR}/build"
 
 
 do_compile() {
-	export CFLAGS="${CFLAGS} --sysroot=${STAGING_DIR_HOST}"
-	export LIBGCC_LOCATE_CFLAGS=--sysroot=${STAGING_DIR_HOST}
+    export CFLAGS="${CFLAGS} --sysroot=${STAGING_DIR_HOST}"
+    export LIBGCC_LOCATE_CFLAGS=--sysroot=${STAGING_DIR_HOST}
+    export OPTEE_TA_ENC="${OPTEE_TA_ENC}"
     oe_runmake -C ${S}
 }
 do_compile[cleandirs] = "${B}"

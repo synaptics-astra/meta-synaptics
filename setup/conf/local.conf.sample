@@ -268,3 +268,6 @@ VIRTUAL-RUNTIME_initscripts = ""
 #Use and bundle initramfs
 INITRAMFS_IMAGE_BUNDLE = "1"
 INITRAMFS_IMAGE = "core-image-initramfs-boot"
+
+#OPTEE TA encryption
+OPTEE_TA_ENC= ##OPTEE_TA_ENC##
