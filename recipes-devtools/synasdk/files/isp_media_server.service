@@ -1,5 +1,6 @@
 [Unit]
 Description=VSI ISP Media Service
+After=synasdk-modules-load.service
 
 [Service]
 Type=oneshot

@@ -16,9 +16,13 @@ SYNA_KERNEL_MODULE_LOAD = " \
 "
 
 SYNA_KERNEL_MODULE_LOAD:append:dolphin = " \
-    scaler \
+    isp \
+    vvcam_vb \
+    vvcam_isp \
     vvcam_video \
+    vvcam_isp_subdev \
     synap \
+    scaler \
 "
 
 SYNA_KERNEL_MODULE_LOAD:append:platypus = " \
