@@ -12,7 +12,7 @@ SRCREV = "${SYNA_SRCREV_V4L2ISP}"
 
 PV = "git${SRCPV}"
 
-S = "${WORKDIR}/${SYNA_SOURCE_PREFIX}/v4l2isp"
+S = "${WORKDIR}/${SYNA_SOURCE_PREFIX}/application/v4l2isp"
 
 DEPENDS = "libmxml synasdk-v4l2isp-sensordrv"
 

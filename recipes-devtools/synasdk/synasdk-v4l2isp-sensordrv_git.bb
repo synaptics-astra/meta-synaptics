@@ -12,7 +12,7 @@ PV = "git${SRCPV}"
 
 COMPATIBLE_MACHINE = "dolphin"
 
-S = "${WORKDIR}/${SYNA_SOURCE_PREFIX}/v4l2isp/sensor_drv"
+S = "${WORKDIR}/${SYNA_SOURCE_PREFIX}/application/v4l2isp/sensor_drv"
 
 inherit pkgconfig cmake
 
@@ -25,10 +25,6 @@ FILES:${PN} = " \
     ${libdir}/*.a \
     ${bindir}/* \
 "
-
-do_configure:prepend() {
-    cp ${S}/CMakeLists_release.txt ${S}/CMakeLists.txt
-}
 
 INSANE_SKIP:${PN} += "dev-so"
 FILES_SOLIBSDEV = ""

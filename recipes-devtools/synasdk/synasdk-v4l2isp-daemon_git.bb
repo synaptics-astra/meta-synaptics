@@ -14,7 +14,7 @@ COMPATIBLE_MACHINE = "dolphin"
 
 DEPENDS = "libmxml synasdk-v4l2isp-sensordrv synasdk-v4l2isp-prebuilts"
 
-S = "${WORKDIR}/${SYNA_SOURCE_PREFIX}/v4l2isp/daemon"
+S = "${WORKDIR}/${SYNA_SOURCE_PREFIX}/application/v4l2isp/daemon"
 
 inherit pkgconfig cmake systemd
 
@@ -40,10 +40,6 @@ FILES:${PN} = " \
     ${systemd_system_unitdir}/* \
     ${datadir}/* \
 "
-
-do_configure:prepend() {
-    mv ${S}/CMakeLists_release.txt ${S}/CMakeLists.txt
-}
 
 INSANE_SKIP:${PN} += "dev-so"
 FILES_SOLIBSDEV = ""
