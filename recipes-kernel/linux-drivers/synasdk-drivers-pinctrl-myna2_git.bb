@@ -18,7 +18,7 @@ SRCREV = "${SYNA_SRCREV_LINUX_5_15_MODULES}"
 
 PV = "${ASTRA_VERSION}+git${SRCPV}"
 
-S = "${WORKDIR}/${SYNA_SDK_PATH}/linux_5_15/modules/drivers/pinctrl/berlin/pinctrl-myna2"
+S = "${WORKDIR}/${SYNA_MODULES_SOURCE_PREFIX}/drivers/pinctrl/berlin/pinctrl-myna2"
 
 do_install:append() {
     rm -f ${D}/lib/modules/${KERNEL_VERSION}/extra/modules.order.*

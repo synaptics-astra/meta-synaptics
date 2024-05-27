@@ -1,7 +1,8 @@
 SUMMARY = "Synaptics Chip ID Driver Kernel Module"
 DESCRIPTION = "${SUMMARY}"
 
-LICENSE = "CLOSED"
+LICENSE = "GPL-2.0-only"
+LIC_FILES_CHKSUM = "file://${WORKDIR}/COPYING;md5=6bc538ed5bd9a7fc9398086aedcd7e46"
 
 COMPATIBLE_MACHINE = "syna"
 
@@ -10,7 +11,8 @@ KERNEL_MODULE_PROBECONF:append = " berlin-chipid"
 
 inherit module
 
-SRC_URI = "${SYNA_SRC_LINUX_5_15_MODULES}"
+SRC_URI = "file://COPYING \
+           ${SYNA_SRC_LINUX_5_15_MODULES}"
 
 SRCREV = "${AUTOREV}"
 
