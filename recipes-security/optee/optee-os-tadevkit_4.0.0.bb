@@ -24,7 +24,11 @@ do_install() {
         cp -aR $f ${D}${includedir}/optee/export-user_ta/
     done
     mkdir -p ${D}${nonarch_base_libdir}/optee_armtz/
-    install -D -p -m0444 ${S}/${syna_chip_name}/export-ta_${OPTEE_ARCH}/ta/*.ta ${D}${nonarch_base_libdir}/optee_armtz/
+    if [ "x${OPTEE_TA_ENC}" = "xdev" ];then
+        install -D -p -m0444 ${S}/${syna_chip_name}/export-ta_${OPTEE_ARCH}/ta/*.ta ${D}${nonarch_base_libdir}/optee_armtz/
+    else
+        install -D -p -m0444 ${S}/${syna_chip_name}/export-ta_${OPTEE_ARCH}/ta_prod/*.ta ${D}${nonarch_base_libdir}/optee_armtz/
+    fi
 }
 
 do_deploy() {
