@@ -23,7 +23,6 @@ IMAGE_INSTALL:append = " \
     i2c-tools \
     v4l-utils \
     synasdk-drivers-axi-meter \
-    synasdk-drivers-fxl6408 \
     synasdk-drivers-bluetooth-lpm \
     synasdk-drivers-bluetooth-rfkill \
     synasdk-drivers-hl7593 \
@@ -31,7 +30,6 @@ IMAGE_INSTALL:append = " \
     synasdk-drivers-tps6286x \
     synasdk-drivers-dwc3-syna \
     synasdk-drivers-phy-syna-usb \
-    synasdk-drivers-syna-clk \
     synasdk-drivers-berlin-chipid \
     synasdk-demos \
     alsa-utils \
@@ -75,12 +73,10 @@ IMAGE_INSTALL:append = " \
 
 IMAGE_INSTALL:append:myna2 = " \
     ${TEE_OPTEE} \
-    synasdk-drivers-pinctrl-myna2 \
     synasdk-drivers-dspg-hookswitch \
     synasdk-drivers-dspg-keypad \
     synasdk-drivers-rtl8363nb \
     synasdk-drivers-tlc5917 \
-    synasdk-drivers-myna2-clks \
     brcm-patchram-plus \
     synasdk-brcm-bt-start \
     syna-trusted-app \
@@ -94,7 +90,6 @@ PLATYPUS_DOLPHIN_INSTALL = " \
     synasdk-drivers-pcie-berlin \
     synasdk-drivers-berlin-ir \
     synasdk-drivers-syna-hwmon \
-    synasdk-drivers-dolphin-pll \
     synasdk-brcm-bt-start \
     imgtec-pvr-firmware \
     syna-trusted-app \
@@ -106,16 +101,12 @@ PLATYPUS_DOLPHIN_INSTALL = " \
 
 IMAGE_INSTALL:append:dolphin = " \
     ${PLATYPUS_DOLPHIN_INSTALL} \
-    synasdk-drivers-dolphin-clks \
-    synasdk-drivers-pinctrl-dolphin \
     synasdk-v4l2isp-daemon \
 "
 
 IMAGE_INSTALL:append:platypus = " \
     ${PLATYPUS_DOLPHIN_INSTALL} \
     synasdk-drivers-sunplus \
-    synasdk-drivers-platypus-clks \
-    synasdk-drivers-pinctrl-platypus \
 "
 
 TOOLCHAIN_TARGET_TASK:append = " synasdk-synap-framework-staticdev"
