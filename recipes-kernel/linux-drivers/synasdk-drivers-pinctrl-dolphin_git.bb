@@ -11,7 +11,7 @@ KERNEL_MODULE_PROBECONF:append = " pinctrl-dolphin"
 
 inherit module
 
-SRC_URI = " file://COPYING \ \
+SRC_URI = " file://COPYING \
             ${SYNA_SRC_LINUX_5_15_MODULES}"
 
 SRCREV = "${SYNA_SRCREV_LINUX_5_15_MODULES}"
