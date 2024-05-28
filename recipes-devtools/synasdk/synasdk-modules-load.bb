@@ -22,7 +22,6 @@ SYNA_KERNEL_MODULE_LOAD:append:dolphin = " \
     vvcam_video \
     vvcam_isp_subdev \
     synap \
-    scaler \
 "
 
 SYNA_KERNEL_MODULE_LOAD:append:platypus = " \
