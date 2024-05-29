@@ -7,3 +7,11 @@ IMAGE_INSTALL:append = " \
     synasdk-syna-player-framework \
     synasdk-syna-video-player \
 "
+
+IMAGE_INSTALL:append:dolphin = " \
+    synasdk-syna-ai-player \
+"
+
+IMAGE_INSTALL:append:platypus = " \
+    synasdk-syna-ai-player \
+"
