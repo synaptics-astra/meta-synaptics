@@ -3,6 +3,7 @@
     {
       "antiBandingMode": 1,
       "classname": "AdaptiveAe",
+      "antiFlickerMode": 1,
       "dampOver": 0.7,
       "dampOverGain": 1,
       "dampOverRatio": 2.0,

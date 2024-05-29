@@ -30,6 +30,27 @@
           ]
         },
         {
+          "class": "CWdrv3_1",
+          "max_global_strength": 72,
+          "enable": 1,
+          "max_gain": 3,
+          "strength": 50
+        },
+        {
+          "class": "C2dnrv3",
+          "enable": 1,
+          "pregamma_strength": 0,
+          "sigma": 4,
+          "strength": 80
+        },
+        {
+          "class": "C3dnrv1_2",
+          "enable": 1,
+          "delta_factor": 48,
+          "motion_factor": 512,
+          "strength": 60
+        },
+        {
           "class": "CGreenEqu",
           "enable": 1,
           "threshold": 2.5
