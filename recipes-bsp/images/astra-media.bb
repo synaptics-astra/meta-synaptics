@@ -73,8 +73,6 @@ IMAGE_INSTALL:append = " \
 
 IMAGE_INSTALL:append:myna2 = " \
     ${TEE_OPTEE} \
-    synasdk-drivers-dspg-hookswitch \
-    synasdk-drivers-dspg-keypad \
     synasdk-drivers-rtl8363nb \
     synasdk-drivers-tlc5917 \
     brcm-patchram-plus \
