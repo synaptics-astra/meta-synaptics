@@ -191,18 +191,18 @@
         },
         {
           "class": "CDpf",
-          "div": 0,
-          "enable": 0,
+          "div": 64,
+          "enable": 1,
           "gain": 24,
-          "gradient": 2,
-          "min": 2.5,
+          "gradient": 0.15000001,
+          "min": 4,
           "noise_curve": [
             4092, 4092, 4092, 4092, 4092, 4092, 4092, 4092, 4092, 4092, 4092,
             4092, 4092, 4092, 4092, 4092, 4092
           ],
-          "offset": 1,
-          "sigma_g": 1,
-          "sigma_rb": 1
+          "offset": 0,
+          "sigma_g": 6,
+          "sigma_rb": 4
         },
         {
           "class": "CLscv2",
@@ -686,7 +686,7 @@
           "chroma_out": 2,
           "class": "CCproc",
           "contrast": 1.2,
-          "enable": 1,
+          "enable": 0,
           "hue": 0,
           "luma_in": 2,
           "luma_out": 2,
