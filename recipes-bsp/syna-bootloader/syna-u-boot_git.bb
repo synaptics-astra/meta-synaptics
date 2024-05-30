@@ -84,8 +84,6 @@ do_deploy () {
     crc -a ${DEPLOYDIR}/version_table
     # Change the subimage files to .gz
     sed -i -e 's:\([a-zA-Z0-9]\+\)\(_[a|b]\)\?\.subimg,:\1.subimg.gz,:' ${DEPLOYDIR}/emmc_image_list
-    # remove the second alternative rootfs
-    awk -i inplace '!/^rootfs/ || !f++' ${DEPLOYDIR}/emmc_image_list
 }
 
 addtask deploy before do_package after do_install

@@ -304,17 +304,23 @@ IMAGE_CMD:synaimg () {
             fi
             if [ -f ${DEPLOY_DIR_IMAGE}/${subimg_name}_s.subimg.0 ]; then
                 # Copy split images ang update emmc_image_list
-                subimg_line=$(grep -m1 "^$i.subimg.gz" ${DEPLOY_DIR_IMAGE}/${SYNAIMG_DEPLOY_SUBDIR}/emmc_image_list)
                 split_num=$(ls ${DEPLOY_DIR_IMAGE}/${subimg_name}_s.subimg.[0-9]*|wc -l)
                 j=0
+                last_j=0
                 while [ $j -lt $split_num ]
                 do
                     cp ${DEPLOY_DIR_IMAGE}/${subimg_name}_s.subimg.$j ${DEPLOY_DIR_IMAGE}/${SYNAIMG_DEPLOY_SUBDIR}/${i}_s.subimg.$j
-                    split_subimg_line=$(echo $subimg_line|sed 's/'$i'.subimg.gz/'$i'_s.subimg.'$j'/')
-                    sed -i '/'$subimg_line'/i '$split_subimg_line'' ${DEPLOY_DIR_IMAGE}/${SYNAIMG_DEPLOY_SUBDIR}/emmc_image_list
+                    if [ $j -eq 0 ]; then
+                        sed -i 's/^'$i'.subimg.gz/'$i'_s.subimg.'$j'/' ${DEPLOY_DIR_IMAGE}/${SYNAIMG_DEPLOY_SUBDIR}/emmc_image_list
+                    else
+                        #workaround to avoid last two lines obsoleted
+                        echo -e "\n\n\n\n\n\n" >> ${DEPLOY_DIR_IMAGE}/${SYNAIMG_DEPLOY_SUBDIR}/emmc_image_list
+                        sed -i '/./{/^'$i'_s.subimg.'$last_j'/H};x; s/^'$i'_s.subimg.'$last_j'/'$i'_s.subimg.'$j'/' ${DEPLOY_DIR_IMAGE}/${SYNAIMG_DEPLOY_SUBDIR}/emmc_image_list
+                    fi
+                    last_j=$j
                     j=$(expr $j + 1)
                 done
-                sed -i '/'$subimg_line'/d' ${DEPLOY_DIR_IMAGE}/${SYNAIMG_DEPLOY_SUBDIR}/emmc_image_list
+                sed -i '/^$/d' ${DEPLOY_DIR_IMAGE}/${SYNAIMG_DEPLOY_SUBDIR}/emmc_image_list
             elif [ -f ${DEPLOY_DIR_IMAGE}/${subimg_name}_s.subimg ]; then
                 cp ${DEPLOY_DIR_IMAGE}/${subimg_name}_s.subimg ${DEPLOY_DIR_IMAGE}/${SYNAIMG_DEPLOY_SUBDIR}/${i}_s.subimg
                 sed -i 's/^'$i'.subimg.gz/'$i'_s.subimg/' ${DEPLOY_DIR_IMAGE}/${SYNAIMG_DEPLOY_SUBDIR}/emmc_image_list
