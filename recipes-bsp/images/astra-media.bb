@@ -115,6 +115,7 @@ mount_usb () {
 /dev/sda1   /media/usb1     auto     noauto,x-systemd.automount     0 2
 /dev/sdb1   /media/usb2     auto     noauto,x-systemd.automount     0 2
 /dev/sdc1   /media/usb3     auto     noauto,x-systemd.automount     0 2
+/dev/sdd1   /media/usb4     auto     noauto,x-systemd.automount     0 2
 
 EOF
 }
